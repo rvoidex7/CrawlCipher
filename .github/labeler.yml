@@ -1,0 +1,54 @@
+# Otomatik label atama kuralları
+
+'C#':
+  - changed-files:
+    - any-glob-to-any-file: 'CrawlCipher.Core/**/*.cs'
+
+'Rust':
+  - changed-files:
+    - any-glob-to-any-file: 'CrawlCipher.Terminal/**/*.rs'
+
+'FFI':
+  - changed-files:
+    - any-glob-to-any-file: 
+      - 'CrawlCipher.Core/**/Exports.cs'
+      - 'CrawlCipher.Terminal/src/ffi.rs'
+
+'Stellar':
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'contracts/**/*'
+      - '**/stellar*.rs'
+      - '**/stellar*.cs'
+
+'Documentation':
+  - changed-files:
+    - any-glob-to-any-file: 
+      - 'docs/**/*'
+      - '**/*.md'
+
+'CI/CD':
+  - changed-files:
+    - any-glob-to-any-file:
+      - '.github/**/*'
+      - '**/*.yml'
+      - '**/*.yaml'
+
+'Build':
+  - changed-files:
+    - any-glob-to-any-file:
+      - '*.sh'
+      - '*.bat'
+      - '**/Cargo.toml'
+      - '**/*.csproj'
+
+'UI/UX':
+  - changed-files:
+    - any-glob-to-any-file: 'CrawlCipher.Terminal/src/ui*.rs'
+
+'Gameplay':
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'CrawlCipher.Core/**/GameCore.cs'
+      - 'CrawlCipher.Core/**/GameEngine.cs'
+      - 'CrawlCipher.Core/Entities/**/*'

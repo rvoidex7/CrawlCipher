@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  rust-build:
+    name: Rust Build & Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        components: clippy, rustfmt
+
+    - name: Check formatting
+      working-directory: CrawlCipher.Terminal
+      run: cargo fmt -- --check || true # Soft fail
+
+    - name: Clippy (Linting)
+      working-directory: CrawlCipher.Terminal
+      run: cargo clippy --release -- -D warnings || true # Soft fail for now
+
+    - name: Build Terminal UI (Release)
+      working-directory: CrawlCipher.Terminal
+      run: cargo build --release
+
+    - name: Run Tests
+      working-directory: CrawlCipher.Terminal
+      run: cargo test --release

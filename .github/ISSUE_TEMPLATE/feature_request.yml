@@ -1,0 +1,74 @@
+name: Feature Request
+description: Suggest a new feature
+title: "[FEATURE]: "
+labels: ["enhancement"]
+assignees:
+  - rvoidex7
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting a new feature! **Note:** Features outside bootcamp MVP scope will be considered for v2.0.
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      description: Is this feature critical for MVP?
+      options:
+        - MVP Critical (Required for bootcamp)
+        - V2 Enhancement (Post-bootcamp)
+        - Nice to Have
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem Statement
+      description: What problem does this solve?
+      placeholder: Currently I cannot ... because ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: How should this be solved?
+      placeholder: Add a feature that allows ...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Which component does this affect?
+      multiple: true
+      options:
+        - C# Game Engine
+        - Rust Terminal UI
+        - Stellar Integration
+        - Gameplay Mechanics
+        - Inventory System
+        - Expedition Mode
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternative Solutions
+      description: Are there other ways to solve this?
+
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope Check
+      description: Please confirm
+      options:
+        - label: I have read BOOTCAMP_MVP_SCOPE.md
+          required: true
+        - label: This feature fits current scope (or I understand it may be deferred to v2)
+          required: true

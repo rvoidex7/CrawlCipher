@@ -1,0 +1,46 @@
+# --- Rust ---
+/target/
+/CrawlCipher.Terminal/target/
+**/*.rs.bk
+Cargo.lock
+
+# --- C# / .NET ---
+**/bin/
+**/obj/
+.vs/
+*.user
+*.suo
+*.ide
+*.pdb
+*.dll
+*.exe
+
+# --- Output & Generated ---
+output/
+_repo2notebook/
+repo2notebook.py
+v2/
+
+# --- IDEs / Editors ---
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# --- Python ---
+__pycache__/
+*.pyc
+
+# Keep specific files if needed (e.g. source code)
+!CrawlCipher.Core/GameCore.cs
+!CrawlCipher.Terminal/src/main.rs
+
+# Docs
+docs/new-docs/
+docs/old-docs/
+target/
+internal-docs/
+dev-build-linux.sh
+dev-build-windows.bat
+#
+CrawlCipher.Core/
