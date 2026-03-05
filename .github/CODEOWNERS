@@ -1,0 +1,25 @@
+# CrawlCipher Code Owners
+# Her PR'da otomatik olarak ilgili kişiler reviewer olarak atanır
+
+# Default owner - tüm dosyalar için
+* @rvoidex7
+
+# C# Game Engine
+/CrawlCipher.Core/ @rvoidex7
+
+# Rust Terminal UI
+/CrawlCipher.Terminal/ @rvoidex7
+
+# Documentation
+/docs/ @rvoidex7
+*.md @rvoidex7
+
+# CI/CD
+/.github/ @rvoidex7
+
+# Build scripts
+*.sh @rvoidex7
+*.bat @rvoidex7
+
+# Stellar Contracts (gelecekte eklenecek)
+/contracts/ @rvoidex7

@@ -1,0 +1,35 @@
+name: Greetings
+
+on: [pull_request_target, issues]
+
+jobs:
+  greeting:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: write
+    
+    steps:
+    - uses: actions/first-interaction@v1
+      with:
+        repo-token: ${{ secrets.GITHUB_TOKEN }}
+        issue-message: |
+          👋 Thanks for your first contribution to CrawlCipher!
+          
+          🎮 This is a tactical snake game built for the Stellar bootcamp.
+          
+          📚 Before you start:
+          - [BOOTCAMP_MVP_SCOPE.md](docs/BOOTCAMP_MVP_SCOPE.md) - MVP scope
+          - [IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) - Task breakdown
+          - [CONTRIBUTING.md](CONTRIBUTING.md) - Contribution guide (coming soon)
+          
+          Your issue will be reviewed shortly!
+        pr-message: |
+          🎉 Thanks for your first Pull Request!
+          
+          ✅ Please check the PR checklist:
+          - [ ] Are CI/CD checks passing?
+          - [ ] Are there any breaking changes?
+          - [ ] Is documentation updated?
+          
+          Review process started, thanks! 🚀
