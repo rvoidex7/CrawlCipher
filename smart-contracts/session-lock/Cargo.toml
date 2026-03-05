@@ -7,7 +7,7 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
-soroban-sdk = "20.5.0"
+soroban-sdk = "25.1.1"
 
 [profile.release]
 opt-level = "z"
