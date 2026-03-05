@@ -1,0 +1,39 @@
+name: Mark Stale Issues
+
+on:
+  schedule:
+    - cron: '0 0 * * *'  # Her gün gece yarısı
+  workflow_dispatch:
+
+jobs:
+  stale:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: write
+    
+    steps:
+    - uses: actions/stale@v9
+      with:
+        repo-token: ${{ secrets.GITHUB_TOKEN }}
+        
+        # Issue ayarları
+        stale-issue-message: |
+          Bu issue 30 gündür aktif değil. 7 gün içinde aktivite olmazsa otomatik kapatılacak.
+          Hala geçerliyse lütfen yorum yapın.
+        close-issue-message: |
+          Bu issue 37 gün boyunca aktif olmadığı için kapatıldı.
+        days-before-issue-stale: 30
+        days-before-issue-close: 7
+        stale-issue-label: 'stale'
+        exempt-issue-labels: 'pinned,MVP,critical'
+        
+        # PR ayarları
+        stale-pr-message: |
+          Bu PR 14 gündür güncellenmiyor. 7 gün içinde aktivite olmazsa otomatik kapatılacak.
+        close-pr-message: |
+          Bu PR 21 gün boyunca güncellenmediği için kapatıldı.
+        days-before-pr-stale: 14
+        days-before-pr-close: 7
+        stale-pr-label: 'stale'
+        exempt-pr-labels: 'pinned,MVP,in-progress'

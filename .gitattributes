@@ -1,0 +1,39 @@
+# Auto detect text files and perform LF normalization
+* text=auto
+
+# Source files
+*.cs text diff=csharp
+*.rs text diff=rust
+*.toml text
+*.json text
+*.yml text
+*.yaml text
+*.md text
+*.sh text eol=lf
+*.bat text eol=crlf
+
+# Binary files
+*.dll binary
+*.so binary
+*.dylib binary
+*.exe binary
+*.wasm binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+
+# Archives
+*.zip binary
+*.tar binary
+*.gz binary
+*.7z binary
+
+# Linguist overrides (GitHub language detection)
+docs/** linguist-documentation
+*.md linguist-detectable
+build-*.sh linguist-vendored
+build-*.bat linguist-vendored
+output/** linguist-generated

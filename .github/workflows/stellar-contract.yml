@@ -1,0 +1,36 @@
+name: Smart Contract CI
+
+on:
+  push:
+    paths:
+      - 'smart-contracts/**'
+  pull_request:
+    paths:
+      - 'smart-contracts/**'
+
+jobs:
+  build-contract:
+    name: Build Soroban Contract
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        targets: wasm32-unknown-unknown
+
+    - name: Build Contract (WASM)
+      working-directory: smart-contracts/session-lock
+      run: cargo build --target wasm32-unknown-unknown --release
+
+    - name: Verify WASM Output
+      run: |
+        if [ ! -f smart-contracts/session-lock/target/wasm32-unknown-unknown/release/session_lock.wasm ]; then
+          echo "ERROR: Contract WASM file not generated."
+          # We use return 1 or false to fail the step in GH actions gracefully
+          false
+        else
+          echo "Smart contract compiled successfully."
+        fi

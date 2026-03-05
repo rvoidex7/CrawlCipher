@@ -1,0 +1,74 @@
+name: Bug Report
+description: Report issues in the game or build process
+title: "[BUG]: "
+labels: ["bug", "needs-triage"]
+assignees:
+  - rvoidex7
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug in CrawlCipher. Please provide as much detail as possible.
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Which component has the issue?
+      options:
+        - C# Game Engine (CrawlCipher.Core)
+        - Rust Terminal UI (CrawlCipher.Terminal)
+        - FFI Bridge (C#/Rust interop)
+        - Stellar Integration
+        - Build Process
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: Detailed description of the issue
+      placeholder: What happened? What did you expect to happen?
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      description: How can we reproduce the issue?
+      placeholder: |
+        1. Start the game
+        2. Press '...' key
+        3. Error occurs
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating System
+      options:
+        - Linux
+        - Windows
+        - macOS
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs/Error Messages
+      description: Include any relevant logs or error messages
+      render: shell
+      placeholder: |
+        Paste panic messages or stack traces here
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional Context
+      description: Any other context, screenshots, etc.
