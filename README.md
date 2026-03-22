@@ -24,7 +24,6 @@ The primary focus of this project is resolving trust and manipulation issues in 
     </td>
   </tr>
 </table>
----
 
 ## Deployed Smart Contract (Stellar Testnet)
 
