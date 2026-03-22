@@ -3,6 +3,8 @@
 A full-stack, terminal-based dApp demonstrating **deterministic state hashing**, **cryptographic fairness**, and **Soroban smart contract integration** on the Stellar blockchain.
 
 The primary focus of this project is resolving trust and manipulation issues in decentralized interactive systems through cryptographic proofs.
+<img width="1300" height="1100" alt="unnamed" src="https://github.com/user-attachments/assets/d6335b38-f49d-4547-8162-0b060d083b77" />
+<img width="2000" height="1414" alt="🇹🇷 KOD_2026 – Kodla, Yapay Zeka Zincirlerini Kır certificate" src="https://github.com/user-attachments/assets/03b01c44-da1e-4115-91c6-3225f7ae6fc7" />
 
 ---
 
