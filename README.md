@@ -25,6 +25,10 @@ The primary focus of this project is resolving trust and manipulation issues in 
   </tr>
 </table>
 
+
+https://github.com/user-attachments/assets/2ccbec21-18a8-448a-ae41-9b4ea0812624
+
+
 ## Deployed Smart Contract (Stellar Testnet)
 
 | Field | Value |
