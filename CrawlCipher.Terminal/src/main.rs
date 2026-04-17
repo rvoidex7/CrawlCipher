@@ -323,7 +323,10 @@ async fn main() -> Result<()> {
         profile_stats = profile::fetch_profile(&account_id).await.ok();
     } else {
         // Offline Mode
-        seed = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as i64;
+        seed = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis() as i64)
+            .unwrap_or(12345);
         profile_stats = None;
     }
 
