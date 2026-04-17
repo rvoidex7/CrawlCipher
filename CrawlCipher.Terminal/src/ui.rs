@@ -256,16 +256,15 @@ fn render_compact_sidebar(frame: &mut Frame, area: Rect, state: &SimulationState
 
 // ===== Game Grid (Maximized) =====
 
-fn to_excel_col(n: i32) -> String {
-    let mut n = n;
-    let mut s = String::new();
-    loop {
+fn to_excel_col(mut n: i32) -> String {
+    let mut s = Vec::new();
+    while n >= 0 {
         let rem = (n % 26) as u8;
-        s.push((b'A' + rem) as char);
+        s.push(b'A' + rem);
         n = n / 26 - 1;
-        if n < 0 { break; }
     }
-    s.chars().rev().collect()
+    s.reverse();
+    String::from_utf8(s).unwrap_or_default()
 }
 
 fn render_game_grid(
@@ -281,8 +280,6 @@ fn render_game_grid(
     show_ghost: bool,
     background: &BackgroundPattern,
 ) {
-    let _ = player;
-    
     let row_header_w = (state.grid_height.to_string().len() + 1) as u16;
     let col_header_h = 2;
 
