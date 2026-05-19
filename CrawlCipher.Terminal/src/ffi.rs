@@ -103,10 +103,8 @@ type FnProcessInput = unsafe extern "C" fn(*mut c_void, i32, i32, i32);
 type FnGetPlayerState = unsafe extern "C" fn(*mut c_void, i32) -> PlayerState;
 type FnGetGridCells = unsafe extern "C" fn(*mut c_void, *mut CellInfo, i32, i32, i32, i32, i32) -> i32;
 type FnGetBackpack = unsafe extern "C" fn(*mut c_void, i32, *mut InventoryItem, i32) -> i32;
-type FnGetEquippedItems = unsafe extern "C" fn(*mut c_void, i32, *mut InventoryItem, i32) -> i32;
 type FnEquipItem = unsafe extern "C" fn(*mut c_void, i32, *const i8, i32, i32) -> i32;
 type FnUnequipItem = unsafe extern "C" fn(*mut c_void, i32, i32) -> i32;
-type FnSwapItems = unsafe extern "C" fn(*mut c_void, i32, i32, i32) -> i32;
 type FnGetReplayHash = unsafe extern "C" fn(*mut c_void, *mut u8, i32);
 
 // ===== Safe Rust Wrapper using libloading =====
@@ -122,10 +120,8 @@ pub struct NativeEngine {
     get_playerstate_fn: Symbol<'static, FnGetPlayerState>,
     get_gridcells_fn: Symbol<'static, FnGetGridCells>,
     get_backpack_fn: Symbol<'static, FnGetBackpack>,
-    get_equipped_items_fn: Symbol<'static, FnGetEquippedItems>,
     equip_item_fn: Symbol<'static, FnEquipItem>,
     unequip_item_fn: Symbol<'static, FnUnequipItem>,
-    swap_items_fn: Symbol<'static, FnSwapItems>,
     get_replay_hash_fn: Symbol<'static, FnGetReplayHash>,
 }
 
@@ -156,10 +152,8 @@ impl NativeEngine {
             let get_playerstate: Symbol<FnGetPlayerState> = lib.get(b"GetPlayerState").expect("Missing GetPlayerState");
             let get_gridcells: Symbol<FnGetGridCells> = lib.get(b"GetGridCells").expect("Missing GetGridCells");
             let get_backpack: Symbol<FnGetBackpack> = lib.get(b"GetBackpack").expect("Missing GetBackpack");
-            let get_equipped_items: Symbol<FnGetEquippedItems> = lib.get(b"GetEquippedItems").expect("Missing GetEquippedItems");
             let equip_item: Symbol<FnEquipItem> = lib.get(b"EquipItemFFI").expect("Missing EquipItemFFI");
             let unequip_item: Symbol<FnUnequipItem> = lib.get(b"UnequipItemFFI").expect("Missing UnequipItemFFI");
-            let swap_items: Symbol<FnSwapItems> = lib.get(b"SwapItemsFFI").expect("Missing SwapItemsFFI");
             let get_replay_hash: Symbol<FnGetReplayHash> = lib.get(b"GetReplayHash").expect("Missing GetReplayHash");
 
             let c_name = std::ffi::CString::new(player_name).unwrap();
@@ -181,10 +175,8 @@ impl NativeEngine {
             let get_playerstate_fn = std::mem::transmute(get_playerstate);
             let get_gridcells_fn = std::mem::transmute(get_gridcells);
             let get_backpack_fn = std::mem::transmute(get_backpack);
-            let get_equipped_items_fn = std::mem::transmute(get_equipped_items);
             let equip_item_fn = std::mem::transmute(equip_item);
             let unequip_item_fn = std::mem::transmute(unequip_item);
-            let swap_items_fn = std::mem::transmute(swap_items);
             let get_replay_hash_fn = std::mem::transmute(get_replay_hash);
 
             Self {
@@ -197,10 +189,8 @@ impl NativeEngine {
                 get_playerstate_fn,
                 get_gridcells_fn,
                 get_backpack_fn,
-                get_equipped_items_fn,
                 equip_item_fn,
                 unequip_item_fn,
-                swap_items_fn,
                 get_replay_hash_fn,
             }
         }
@@ -254,16 +244,7 @@ impl NativeEngine {
         }
     }
 
-    pub fn get_equipped_items(&self, player_id: i32) -> Vec<InventoryItem> {
-        let mut items = vec![InventoryItem::default(); 50];
-        let count = unsafe { (self.get_equipped_items_fn)(self.game_ptr, player_id, items.as_mut_ptr(), 50) };
-        if count >= 0 {
-            items.truncate(count as usize);
-            items
-        } else {
-            Vec::new()
-        }
-    }
+
 
     pub fn equip_item(&self, player_id: i32, item_id: &str, segment_index: i32, side: i32) -> bool {
         let c_item_id = std::ffi::CString::new(item_id).unwrap();
@@ -274,9 +255,7 @@ impl NativeEngine {
         unsafe { (self.unequip_item_fn)(self.game_ptr, player_id, segment_index) != 0 }
     }
 
-    pub fn swap_items(&self, player_id: i32, idx_a: i32, idx_b: i32) -> bool {
-        unsafe { (self.swap_items_fn)(self.game_ptr, player_id, idx_a, idx_b) != 0 }
-    }
+
 
     pub fn get_replay_hash(&self) -> String {
         let mut buffer = vec![0u8; 128]; // SHA256 hex is 64 chars, + slack

@@ -8,7 +8,7 @@ mod menu_ui;
 mod background;
 
 use stellar::{entropy, profile, session, profile::ProfileStats};
-use config::AppConfig;
+
 use menu_ui::{MenuUI, MenuState, render_menu};
 use background::BackgroundPattern;
 use anyhow::Result;
