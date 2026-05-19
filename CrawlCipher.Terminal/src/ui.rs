@@ -14,6 +14,7 @@ use crate::ffi::{NativeEngine, CellInfo, SimulationState, PlayerState};
 use crate::stellar::profile::ProfileStats;
 use crate::config::AppConfig;
 use crate::background::BackgroundPattern;
+use crate::inventory_ui::render_inventory;
 
 // ===== Main Render Function =====
 
@@ -30,14 +31,16 @@ pub fn render(
     profile_stats: &Option<ProfileStats>,
     config: &AppConfig,
     background: &BackgroundPattern,
+    show_inventory: bool,
+    inventory_index: usize,
 ) {
     let size = frame.size();
 
     // Check aspect ratio to determine layout mode
     if size.width > 120 {
-        render_horizontal_layout(frame, size, state, player, all_players, game, show_grid, cam_x, cam_y, show_ghost, background);
+        render_horizontal_layout(frame, size, state, player, all_players, game, show_grid, cam_x, cam_y, show_ghost, background, show_inventory, inventory_index);
     } else {
-        render_vertical_layout(frame, size, state, player, all_players, game, show_grid, cam_x, cam_y, show_ghost, background);
+        render_vertical_layout(frame, size, state, player, all_players, game, show_grid, cam_x, cam_y, show_ghost, background, show_inventory, inventory_index);
     }
 
     // Boss Warning
@@ -74,17 +77,29 @@ fn render_horizontal_layout(
     cam_y: i32,
     show_ghost: bool,
     background: &BackgroundPattern,
+    show_inventory: bool,
+    inventory_index: usize,
 ) {
+    let inv_width = if show_inventory { 30 } else { 0 }; // Reduced width for single list
+
     let chunks = Layout::default()
         .direction(LayoutDirection::Horizontal)
         .constraints([
             Constraint::Length(4), // Ultra-thin: Border(1) + Content(2) + Border(1)
             Constraint::Min(0),     // Game Grid (Remaining space)
+            Constraint::Length(inv_width), // Inventory
         ])
         .split(area);
 
     render_compact_sidebar(frame, chunks[0], state, player);
     render_game_grid(frame, chunks[1], state, player, all_players, game, show_grid, cam_x, cam_y, show_ghost, background);
+
+    if show_inventory {
+        let backpack = game.get_backpack(player.id);
+        let count = backpack.len();
+        let valid_index = if count == 0 { 0 } else { inventory_index.min(count - 1) };
+        render_inventory(frame, chunks[2], &backpack, valid_index);
+    }
 }
 
 // ===== Vertical Layout (Portrait) =====
@@ -102,17 +117,29 @@ fn render_vertical_layout(
     cam_y: i32,
     show_ghost: bool,
     background: &BackgroundPattern,
+    show_inventory: bool,
+    inventory_index: usize,
 ) {
+    let inv_height = if show_inventory { 8 } else { 0 }; // Reduced height for single list
+
     let chunks = Layout::default()
         .direction(LayoutDirection::Vertical)
         .constraints([
             Constraint::Length(3),  // Top Status Bar (Compact)
             Constraint::Min(0),     // Game Grid (Remaining space)
+            Constraint::Length(inv_height), // Inventory Bottom Panel
         ])
         .split(area);
 
     render_top_statusbar_content(frame, chunks[0], state, player);
     render_game_grid(frame, chunks[1], state, player, all_players, game, show_grid, cam_x, cam_y, show_ghost, background);
+
+    if show_inventory {
+        let backpack = game.get_backpack(player.id);
+        let count = backpack.len();
+        let valid_index = if count == 0 { 0 } else { inventory_index.min(count - 1) };
+        render_inventory(frame, chunks[2], &backpack, valid_index);
+    }
 }
 
 // ===== Component: Top Status Bar (Vertical Layout) =====

@@ -8,7 +8,7 @@ mod menu_ui;
 mod background;
 
 use stellar::{entropy, profile, session, profile::ProfileStats};
-use inventory_ui::{InventoryPanel, render_inventory};
+use config::AppConfig;
 use menu_ui::{MenuUI, MenuState, render_menu};
 use background::BackgroundPattern;
 use anyhow::Result;
@@ -132,6 +132,10 @@ struct Args {
     /// Energy gain per tick while idle (manual mode)
     #[arg(long, default_value = "2")]
     idle_gain: i32,
+
+    /// Give unlimited items for testing
+    #[arg(long, default_value = "false", action = clap::ArgAction::Set)]
+    unlimited_items: bool,
 }
 
 #[tokio::main]
@@ -368,6 +372,7 @@ async fn main() -> Result<()> {
     simulation.process_input(8, 18, args.snail_count);
     simulation.process_input(8, 19, if args.show_strike_body { 1 } else { 0 });
     simulation.process_input(8, 21, args.idle_gain);
+    simulation.process_input(8, 22, if args.unlimited_items { 1 } else { 0 });
 
     // Smart Contract: Session Lock
     if !is_offline {
@@ -400,7 +405,6 @@ async fn main() -> Result<()> {
 
     // Inventory State
     let mut show_inventory = false;
-    let mut inventory_panel = InventoryPanel::Backpack;
     let mut inventory_index = 0;
 
     loop {
@@ -414,48 +418,44 @@ async fn main() -> Result<()> {
                 if show_inventory {
                     match key.code {
                         KeyCode::Esc | KeyCode::Char('i') | KeyCode::Char('I') => show_inventory = false,
-                        KeyCode::Tab => {
-                            inventory_panel = if inventory_panel == InventoryPanel::Backpack {
-                                InventoryPanel::Equipped
-                            } else {
-                                InventoryPanel::Backpack
-                            };
-                            inventory_index = 0;
-                        }
                         KeyCode::Up | KeyCode::Char('w') => {
                             if inventory_index > 0 { inventory_index -= 1; }
                         }
                         KeyCode::Down | KeyCode::Char('s') => {
-                            let count = match inventory_panel {
-                                InventoryPanel::Backpack => simulation.get_backpack(player.id).len(),
-                                InventoryPanel::Equipped => simulation.get_equipped_items(player.id).len(),
-                            };
+                            let count = simulation.get_backpack(player.id).len();
                             if inventory_index < count.saturating_sub(1) { inventory_index += 1; }
                         }
+                        KeyCode::Char('a') | KeyCode::Char('A') => {
+                            let jump = if key.modifiers.contains(KeyModifiers::SHIFT) { 1 } else { 0 };
+                            simulation.process_input(2, jump, 0);
+                        }
+                        KeyCode::Char('z') | KeyCode::Char('Z') => {
+                            let jump = if key.modifiers.contains(KeyModifiers::SHIFT) { 1 } else { 0 };
+                            simulation.process_input(3, jump, 0);
+                        }
                         KeyCode::Char('e') | KeyCode::Enter => {
-                            if inventory_panel == InventoryPanel::Backpack {
-                                let backpack = simulation.get_backpack(player.id);
-                                if let Some(item) = backpack.get(inventory_index) {
-                                    let item_id = String::from_utf8_lossy(&item.id).trim_matches('\0').to_string();
-                                    // Equip to focused segment
-                                    // Always re-fetch state to be safe? Player var is from end of last loop.
-                                    // It should be fresh enough.
-                                    simulation.equip_item(player.id, &item_id, player.focused_segment, 1);
-                                }
+                            let backpack = simulation.get_backpack(player.id);
+                            if let Some(item) = backpack.get(inventory_index) {
+                                let item_id = String::from_utf8_lossy(&item.id).trim_matches('\0').to_string();
+                                simulation.equip_item(player.id, &item_id, player.focused_segment, 1); // 1 = Right (default)
                             }
                         }
-                        KeyCode::Char('u') => {
-                            if inventory_panel == InventoryPanel::Equipped {
-                                simulation.unequip_item(player.id, inventory_index as i32);
+                        KeyCode::Char('x') | KeyCode::Char('X') => {
+                            let backpack = simulation.get_backpack(player.id);
+                            if let Some(item) = backpack.get(inventory_index) {
+                                let item_id = String::from_utf8_lossy(&item.id).trim_matches('\0').to_string();
+                                simulation.equip_item(player.id, &item_id, player.focused_segment, 0); // 0 = Left
                             }
                         }
-                        KeyCode::Char('m') => {
-                            // Swap item at current index with next index (simple test)
-                            if inventory_panel == InventoryPanel::Equipped {
-                                // Swap current with next (circular)
-                                let next_idx = (inventory_index + 1) % simulation.get_equipped_items(player.id).len();
-                                simulation.swap_items(player.id, inventory_index as i32, next_idx as i32);
+                        KeyCode::Char('c') | KeyCode::Char('C') => {
+                            let backpack = simulation.get_backpack(player.id);
+                            if let Some(item) = backpack.get(inventory_index) {
+                                let item_id = String::from_utf8_lossy(&item.id).trim_matches('\0').to_string();
+                                simulation.equip_item(player.id, &item_id, player.focused_segment, 1); // 1 = Right
                             }
+                        }
+                        KeyCode::Char('u') | KeyCode::Char('U') => {
+                            simulation.unequip_item(player.id, player.focused_segment);
                         }
                         _ => {}
                     }
@@ -559,17 +559,7 @@ async fn main() -> Result<()> {
         let show_indicators = args.show_move_indicators;
 
         terminal.draw(|f| {
-            ui::render(f, &state, &player, &all_players, &simulation, args.grid_visible, camera_x, camera_y.round() as i32, show_indicators, &profile_stats, &config, &bg);
-
-            if show_inventory {
-                let backpack = simulation.get_backpack(player.id);
-                let equipped = simulation.get_equipped_items(player.id);
-                // Ensure index is valid
-                let count = if inventory_panel == InventoryPanel::Backpack { backpack.len() } else { equipped.len() };
-                let valid_index = if count == 0 { 0 } else { inventory_index.min(count - 1) };
-
-                render_inventory(f, f.size(), &backpack, &equipped, inventory_panel, valid_index);
-            }
+            ui::render(f, &state, &player, &all_players, &simulation, args.grid_visible, camera_x, camera_y.round() as i32, show_indicators, &profile_stats, &config, &bg, show_inventory, inventory_index);
         })?;
     }
 
