@@ -433,25 +433,25 @@ async fn main() -> Result<()> {
                             let jump = if key.modifiers.contains(KeyModifiers::SHIFT) { 1 } else { 0 };
                             simulation.process_input(3, jump, 0);
                         }
-                        KeyCode::Char('e') | KeyCode::Enter => {
+                        KeyCode::Char('e') | KeyCode::Char('E') | KeyCode::Enter => {
                             let backpack = simulation.get_backpack(player.id);
-                            if let Some(item) = backpack.get(inventory_index) {
-                                let item_id = String::from_utf8_lossy(&item.id).trim_matches('\0').to_string();
-                                simulation.equip_item(player.id, &item_id, player.focused_segment, 1); // 1 = Right (default)
+                            let grouped = crate::inventory_ui::group_backpack(&backpack);
+                            if let Some(group) = grouped.get(inventory_index) {
+                                simulation.equip_item(player.id, &group.first_id, player.focused_segment, 1); // 1 = Right (default)
                             }
                         }
                         KeyCode::Char('x') | KeyCode::Char('X') => {
                             let backpack = simulation.get_backpack(player.id);
-                            if let Some(item) = backpack.get(inventory_index) {
-                                let item_id = String::from_utf8_lossy(&item.id).trim_matches('\0').to_string();
-                                simulation.equip_item(player.id, &item_id, player.focused_segment, 0); // 0 = Left
+                            let grouped = crate::inventory_ui::group_backpack(&backpack);
+                            if let Some(group) = grouped.get(inventory_index) {
+                                simulation.equip_item(player.id, &group.first_id, player.focused_segment, 0); // 0 = Left
                             }
                         }
                         KeyCode::Char('c') | KeyCode::Char('C') => {
                             let backpack = simulation.get_backpack(player.id);
-                            if let Some(item) = backpack.get(inventory_index) {
-                                let item_id = String::from_utf8_lossy(&item.id).trim_matches('\0').to_string();
-                                simulation.equip_item(player.id, &item_id, player.focused_segment, 1); // 1 = Right
+                            let grouped = crate::inventory_ui::group_backpack(&backpack);
+                            if let Some(group) = grouped.get(inventory_index) {
+                                simulation.equip_item(player.id, &group.first_id, player.focused_segment, 1); // 1 = Right
                             }
                         }
                         KeyCode::Char('u') | KeyCode::Char('U') => {

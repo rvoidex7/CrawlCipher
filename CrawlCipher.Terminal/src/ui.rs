@@ -96,9 +96,10 @@ fn render_horizontal_layout(
 
     if show_inventory {
         let backpack = game.get_backpack(player.id);
-        let count = backpack.len();
+        let grouped = crate::inventory_ui::group_backpack(&backpack);
+        let count = grouped.len();
         let valid_index = if count == 0 { 0 } else { inventory_index.min(count - 1) };
-        render_inventory(frame, chunks[2], &backpack, valid_index);
+        crate::inventory_ui::render_inventory(frame, chunks[2], &grouped, valid_index);
     }
 }
 
@@ -136,9 +137,10 @@ fn render_vertical_layout(
 
     if show_inventory {
         let backpack = game.get_backpack(player.id);
-        let count = backpack.len();
+        let grouped = crate::inventory_ui::group_backpack(&backpack);
+        let count = grouped.len();
         let valid_index = if count == 0 { 0 } else { inventory_index.min(count - 1) };
-        render_inventory(frame, chunks[2], &backpack, valid_index);
+        crate::inventory_ui::render_inventory(frame, chunks[2], &grouped, valid_index);
     }
 }
 
