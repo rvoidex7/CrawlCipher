@@ -136,6 +136,10 @@ struct Args {
     /// Give unlimited items for testing
     #[arg(long, default_value = "false", action = clap::ArgAction::Set)]
     unlimited_items: bool,
+
+    /// Show energy drain on body segments
+    #[arg(long, default_value = "false", action = clap::ArgAction::Set)]
+    energy_body_indicator: bool,
 }
 
 #[tokio::main]
@@ -559,7 +563,7 @@ async fn main() -> Result<()> {
         let show_indicators = args.show_move_indicators;
 
         terminal.draw(|f| {
-            ui::render(f, &state, &player, &all_players, &simulation, args.grid_visible, camera_x, camera_y.round() as i32, show_indicators, &profile_stats, &config, &bg, show_inventory, inventory_index);
+            ui::render(f, &state, &player, &all_players, &simulation, args.grid_visible, camera_x, camera_y.round() as i32, show_indicators, &profile_stats, &config, &bg, show_inventory, inventory_index, args.energy_body_indicator);
         })?;
     }
 

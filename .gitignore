@@ -44,3 +44,4 @@ dev-build-linux.sh
 dev-build-windows.bat
 #
 CrawlCipher.Core/
+core-binaries/libCrawlCipher.Core.so

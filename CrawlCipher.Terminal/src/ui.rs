@@ -33,14 +33,15 @@ pub fn render(
     background: &BackgroundPattern,
     show_inventory: bool,
     inventory_index: usize,
+    energy_body_indicator: bool,
 ) {
     let size = frame.size();
 
     // Check aspect ratio to determine layout mode
     if size.width > 120 {
-        render_horizontal_layout(frame, size, state, player, all_players, game, show_grid, cam_x, cam_y, show_ghost, background, show_inventory, inventory_index);
+        render_horizontal_layout(frame, size, state, player, all_players, game, show_grid, cam_x, cam_y, show_ghost, background, show_inventory, inventory_index, energy_body_indicator);
     } else {
-        render_vertical_layout(frame, size, state, player, all_players, game, show_grid, cam_x, cam_y, show_ghost, background, show_inventory, inventory_index);
+        render_vertical_layout(frame, size, state, player, all_players, game, show_grid, cam_x, cam_y, show_ghost, background, show_inventory, inventory_index, energy_body_indicator);
     }
 
     // Boss Warning
@@ -79,6 +80,7 @@ fn render_horizontal_layout(
     background: &BackgroundPattern,
     show_inventory: bool,
     inventory_index: usize,
+    energy_body_indicator: bool,
 ) {
     let inv_width = if show_inventory { 30 } else { 0 }; // Reduced width for single list
 
@@ -92,7 +94,7 @@ fn render_horizontal_layout(
         .split(area);
 
     render_compact_sidebar(frame, chunks[0], state, player);
-    render_game_grid(frame, chunks[1], state, player, all_players, game, show_grid, cam_x, cam_y, show_ghost, background);
+    render_game_grid(frame, chunks[1], state, player, all_players, game, show_grid, cam_x, cam_y, show_ghost, background, energy_body_indicator);
 
     if show_inventory {
         let backpack = game.get_backpack(player.id);
@@ -120,6 +122,7 @@ fn render_vertical_layout(
     background: &BackgroundPattern,
     show_inventory: bool,
     inventory_index: usize,
+    energy_body_indicator: bool,
 ) {
     let inv_height = if show_inventory { 8 } else { 0 }; // Reduced height for single list
 
@@ -133,7 +136,7 @@ fn render_vertical_layout(
         .split(area);
 
     render_top_statusbar_content(frame, chunks[0], state, player);
-    render_game_grid(frame, chunks[1], state, player, all_players, game, show_grid, cam_x, cam_y, show_ghost, background);
+    render_game_grid(frame, chunks[1], state, player, all_players, game, show_grid, cam_x, cam_y, show_ghost, background, energy_body_indicator);
 
     if show_inventory {
         let backpack = game.get_backpack(player.id);
@@ -309,6 +312,7 @@ fn render_game_grid(
     cam_y: i32,
     show_ghost: bool,
     background: &BackgroundPattern,
+    energy_body_indicator: bool,
 ) {
     let _ = player;
     
@@ -446,7 +450,7 @@ fn render_game_grid(
 
         // 1. Determine Background (High-Res Sampling: 2 chars per grid cell)
         // We calculate world_x * 2 to sample two distinct characters from the background pattern
-        let (bg_color, bg_left_char, bg_right_char) = if background.width == 0 {
+        let (mut bg_color, bg_left_char, bg_right_char) = if background.width == 0 {
              // Checkerboard fallback
              let is_even = (world_x + world_y).rem_euclid(2) == 0;
              let c = if show_grid {
@@ -476,7 +480,7 @@ fn render_game_grid(
         };
 
         // 2. Determine Entity Symbol & Color
-        let (mut symbol_str, mut fg_color) = resolve_entity_style(cell, all_players);
+        let (mut symbol_str, mut fg_color, custom_bg_color) = resolve_entity_style(cell, all_players, energy_body_indicator);
 
         // 3. Occlusion / Layering Logic
         if cell.cell_type == 0 {
@@ -518,6 +522,10 @@ fn render_game_grid(
         // If symbol_str is 1 char (e.g. from bg), padding added above.
         // If symbol_str is 2 chars (e.g. "()"), use as is.
         let final_sym = format!("{:2.2}", symbol_str); // Truncate/Pad to 2
+
+        if let Some(custom_bg) = custom_bg_color {
+            bg_color = custom_bg;
+        }
 
         let style = Style::default().fg(fg_color).bg(bg_color);
         buf.set_string(screen_x, screen_y, final_sym, style);
@@ -589,38 +597,56 @@ fn render_game_grid(
     }
 }
 
-fn resolve_entity_style(cell: &CellInfo, all_players: &HashMap<i32, PlayerState>) -> (String, Color) {
+fn resolve_entity_style(cell: &CellInfo, all_players: &HashMap<i32, PlayerState>, energy_body_indicator: bool) -> (String, Color, Option<Color>) {
     match cell.cell_type {
-            0 => ("".to_string(), Color::Reset), // Handled by BG logic
-            4 => ("██".to_string(), Color::DarkGray), // Wall
-            5 => ("()".to_string(), Color::Red), // Food
-            6 => ("**".to_string(), Color::White), // Obstacle/Other
+            0 => ("".to_string(), Color::Reset, None), // Handled by BG logic
+            4 => ("██".to_string(), Color::DarkGray, None), // Wall
+            5 => ("()".to_string(), Color::Red, None), // Food
+            6 => ("**".to_string(), Color::White, None), // Obstacle/Other
             1 | 2 | 3 | 7 => {
                 let p_color = if let Some(p) = all_players.get(&cell.player_id) {
                     Color::Rgb(p.color_r, p.color_g, p.color_b)
                 } else { Color::Magenta };
 
                 let (r, g, b) = if let Color::Rgb(cr, cg, cb) = p_color { (cr, cg, cb) } else { (255, 0, 255) };
-                let is_powered = cell.extra_data == 1;
+                
+                let extra_data = cell.extra_data;
+                let is_powered_raw = (extra_data & 0xFF) == 1;
+                let weapon_type = extra_data >> 8;
 
-                let final_color = if is_powered {
+                let is_powered_visual = if !energy_body_indicator { true } else { is_powered_raw };
+
+                let final_color = if is_powered_visual {
                      p_color
                 } else {
                      Color::Rgb(r.saturating_sub(100), g.saturating_sub(100), b.saturating_sub(100))
                 };
 
-                let sym = if is_powered { "██" } else { "▒▒" };
+                let sym = match weapon_type {
+                    4 => " A",
+                    5 => " P",
+                    6 => " C",
+                    1 | 2 | 3 => " W",
+                    _ => if is_powered_visual { "██" } else { "▒▒" }
+                };
+
                 let render_color = if cell.cell_type == 7 { Color::Yellow } else { final_color };
-                (sym.to_string(), render_color)
+
+                if weapon_type > 0 {
+                    // For weapons, text is black, background is the snake segment color
+                    (sym.to_string(), Color::Black, Some(render_color))
+                } else {
+                    (sym.to_string(), render_color, None)
+                }
             },
             8 => {
                  let dir = cell.extra_data;
                  let sym = match dir {
                      0 | 4 => "||", 2 | 6 => "==", 1 | 5 => "//", 3 | 7 => "\\\\", _ => "??",
                  };
-                 (sym.to_string(), Color::Yellow)
+                 (sym.to_string(), Color::Yellow, None)
             },
-            9 => ("▒▒".to_string(), Color::White), // Ghost Segment
+            9 => ("▒▒".to_string(), Color::White, None), // Ghost Segment
             10 => {
                 let p_color = if let Some(p) = all_players.get(&cell.player_id) {
                     Color::Rgb(p.color_r, p.color_g, p.color_b)
@@ -628,16 +654,16 @@ fn resolve_entity_style(cell: &CellInfo, all_players: &HashMap<i32, PlayerState>
 
                 let dist = cell.extra_data;
                 if dist > 0 {
-                    (format!("{:>2}", dist.min(99)), p_color)
+                    (format!("{:>2}", dist.min(99)), p_color, None)
                 } else {
-                    ("}{".to_string(), p_color)
+                    ("}{".to_string(), p_color, None)
                 }
             },
             12 => {
                 let p_color = if let Some(p) = all_players.get(&cell.player_id) {
                     Color::Rgb(p.color_r, p.color_g, p.color_b)
                 } else { Color::Cyan };
-                (" +".to_string(), p_color)
+                (" +".to_string(), p_color, None)
             },
             11 => { // Snail
                 let dir = cell.extra_data;
@@ -646,9 +672,9 @@ fn resolve_entity_style(cell: &CellInfo, all_players: &HashMap<i32, PlayerState>
                     4 => "@!", 5 => "/@", 6 => "-@", 7 => "\\@",
                     _ => "@@",
                 };
-                (sym.to_string(), Color::LightGreen)
+                (sym.to_string(), Color::LightGreen, None)
             },
-            _ => ("  ".to_string(), Color::Reset),
+            _ => ("  ".to_string(), Color::Reset, None),
         }
 }
 
