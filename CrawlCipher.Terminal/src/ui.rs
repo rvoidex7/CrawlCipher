@@ -14,7 +14,7 @@ use crate::ffi::{NativeEngine, CellInfo, SimulationState, PlayerState};
 use crate::stellar::profile::ProfileStats;
 use crate::config::AppConfig;
 use crate::background::BackgroundPattern;
-use crate::inventory_ui::render_inventory;
+
 
 // ===== Main Render Function =====
 
