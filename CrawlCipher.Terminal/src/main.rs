@@ -181,15 +181,17 @@ async fn main() -> Result<()> {
                             KeyCode::Down => { if menu.main_selection < 6 { menu.main_selection += 1; } }
                             KeyCode::Enter => {
                                 match menu.main_selection {
-                                    0 => { // Initiate
+                                    0 => { // Initiate Protocol (Online)
                                         if !menu.secret_key.is_empty() {
-                                            break;
+                                            menu.state = MenuState::MissionSelect;
+                                            menu.mission_selection = 0;
                                         } else {
                                             menu.state = MenuState::CredentialsInput;
                                             menu.cred_stage = 0;
+                                            menu.error_msg = None;
                                         }
                                     }
-                                    1 => { // Enter Credentials
+                                    1 => { // Credentials
                                         menu.state = MenuState::CredentialsInput;
                                         menu.cred_stage = 0;
                                         menu.error_msg = None;
@@ -197,7 +199,8 @@ async fn main() -> Result<()> {
                                     2 => { // Ghost Protocol (Offline)
                                         menu.secret_key.clear();
                                         menu.nickname = "GHOST".to_string();
-                                        break;
+                                        menu.state = MenuState::MissionSelect;
+                                        menu.mission_selection = 0;
                                     }
                                     3 => { // Acquire Key
                                         menu.state = MenuState::KeyInfo;
@@ -306,6 +309,17 @@ async fn main() -> Result<()> {
                             menu.state = MenuState::MainMenu;
                         }
                     }
+                    MenuState::MissionSelect => {
+                        match key.code {
+                            KeyCode::Up => { if menu.mission_selection > 0 { menu.mission_selection -= 1; } }
+                            KeyCode::Down => { if menu.mission_selection < 3 { menu.mission_selection += 1; } }
+                            KeyCode::Enter => {
+                                break; // Break out of menu loop to start the mission
+                            }
+                            KeyCode::Esc => { menu.state = MenuState::MainMenu; }
+                            _ => {}
+                        }
+                    }
                 }
             }
         }
@@ -377,6 +391,15 @@ async fn main() -> Result<()> {
     simulation.process_input(8, 19, if args.show_strike_body { 1 } else { 0 });
     simulation.process_input(8, 21, args.idle_gain);
     simulation.process_input(8, 22, if args.unlimited_items { 1 } else { 0 });
+
+    let (mode, puzzle_id) = match menu.mission_selection {
+        0 => ("Expedition", ""),
+        1 => ("Puzzle", "The Narrow Path"),
+        2 => ("Puzzle", "Laser Gate"),
+        3 => ("Puzzle", "Prism Chamber"),
+        _ => ("Expedition", "")
+    };
+    simulation.set_game_mode(mode, puzzle_id);
 
     // Smart Contract: Session Lock
     if !is_offline {

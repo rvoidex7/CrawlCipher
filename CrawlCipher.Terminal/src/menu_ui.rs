@@ -14,6 +14,7 @@ pub enum MenuState {
     KeyInfo,
     Settings,
     CustomBackgroundInput,
+    MissionSelect, // New state for selecting puzzle vs expedition
     Manual, // New State for instructions
 }
 
@@ -29,6 +30,7 @@ pub struct MenuUI {
     pub error_msg: Option<String>,
     pub custom_bg_path: String, // New Field
     pub custom_bg_loaded: bool, // New Field
+    pub mission_selection: usize, // New Field for Mission Select
 }
 
 impl MenuUI {
@@ -45,6 +47,7 @@ impl MenuUI {
             error_msg: None,
             custom_bg_path: String::new(),
             custom_bg_loaded: false,
+            mission_selection: 0,
         }
     }
 }
@@ -62,6 +65,7 @@ pub fn render_menu(frame: &mut Frame, area: Rect, ui: &MenuUI) {
         MenuState::KeyInfo => render_key_info(frame, area),
         MenuState::Settings => render_settings(frame, area, ui),
         MenuState::CustomBackgroundInput => render_custom_bg_input(frame, area, ui),
+        MenuState::MissionSelect => render_mission_select(frame, area, ui),
         MenuState::Manual => render_manual(frame, area),
     }
 }
@@ -290,6 +294,52 @@ fn render_custom_bg_input(frame: &mut Frame, area: Rect, ui: &MenuUI) {
     } else {
         frame.render_widget(Paragraph::new("[ENTER] Load  [ESC] Cancel").style(Style::default().fg(Color::DarkGray)), chunks[2]);
     }
+}
+
+fn render_mission_select(frame: &mut Frame, area: Rect, ui: &MenuUI) {
+    let area = centered_rect(60, 60, area);
+    let block = Block::default().borders(Borders::ALL).title(" SELECT MISSION ");
+    let inner = block.inner(area);
+    frame.render_widget(block, area);
+
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(3), // Header
+            Constraint::Min(5),    // List
+            Constraint::Length(3), // Footer
+        ])
+        .split(inner);
+
+    let header = Paragraph::new("Choose Operation Mode:")
+        .alignment(Alignment::Center)
+        .style(Style::default().fg(Color::Cyan));
+    frame.render_widget(header, chunks[0]);
+
+    let options = vec![
+        " [ EXPEDITION ] (Sandbox Survival) ",
+        " [ PUZZLE: THE NARROW PATH ] ",
+        " [ PUZZLE: LASER GATE ] ",
+        " [ PUZZLE: PRISM CHAMBER ] "
+    ];
+
+    let mut spans = Vec::new();
+    for (i, opt) in options.iter().enumerate() {
+        let is_selected = i == ui.mission_selection;
+        let style = if is_selected {
+            Style::default().fg(Color::Black).bg(Color::Yellow)
+        } else {
+            Style::default().fg(Color::Gray)
+        };
+        spans.push(Line::from(Span::styled(*opt, style)));
+    }
+
+    frame.render_widget(Paragraph::new(spans).alignment(Alignment::Center), chunks[1]);
+
+    let footer = Paragraph::new("[ENTER] Start Mission  [ESC] Back")
+        .alignment(Alignment::Center)
+        .style(Style::default().fg(Color::DarkGray));
+    frame.render_widget(footer, chunks[2]);
 }
 
 fn render_manual(frame: &mut Frame, area: Rect) {

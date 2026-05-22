@@ -106,6 +106,7 @@ type FnGetBackpack = unsafe extern "C" fn(*mut c_void, i32, *mut InventoryItem, 
 type FnEquipItem = unsafe extern "C" fn(*mut c_void, i32, *const i8, i32, i32) -> i32;
 type FnUnequipItem = unsafe extern "C" fn(*mut c_void, i32, i32) -> i32;
 type FnGetReplayHash = unsafe extern "C" fn(*mut c_void, *mut u8, i32);
+type FnSetGameModeFFI = unsafe extern "C" fn(*mut c_void, *const i8, *const i8);
 
 // ===== Safe Rust Wrapper using libloading =====
 
@@ -123,6 +124,7 @@ pub struct NativeEngine {
     equip_item_fn: Symbol<'static, FnEquipItem>,
     unequip_item_fn: Symbol<'static, FnUnequipItem>,
     get_replay_hash_fn: Symbol<'static, FnGetReplayHash>,
+    set_game_mode_fn: Symbol<'static, FnSetGameModeFFI>,
 }
 
 impl NativeEngine {
@@ -155,6 +157,7 @@ impl NativeEngine {
             let equip_item: Symbol<FnEquipItem> = lib.get(b"EquipItemFFI").expect("Missing EquipItemFFI");
             let unequip_item: Symbol<FnUnequipItem> = lib.get(b"UnequipItemFFI").expect("Missing UnequipItemFFI");
             let get_replay_hash: Symbol<FnGetReplayHash> = lib.get(b"GetReplayHash").expect("Missing GetReplayHash");
+            let set_game_mode: Symbol<FnSetGameModeFFI> = lib.get(b"SetGameModeFFI").expect("Missing SetGameModeFFI");
 
             let c_name = std::ffi::CString::new(player_name).unwrap();
 
@@ -178,6 +181,7 @@ impl NativeEngine {
             let equip_item_fn = std::mem::transmute(equip_item);
             let unequip_item_fn = std::mem::transmute(unequip_item);
             let get_replay_hash_fn = std::mem::transmute(get_replay_hash);
+            let set_game_mode_fn = std::mem::transmute(set_game_mode);
 
             Self {
                 game_ptr,
@@ -192,6 +196,7 @@ impl NativeEngine {
                 equip_item_fn,
                 unequip_item_fn,
                 get_replay_hash_fn,
+                set_game_mode_fn,
             }
         }
     }
@@ -241,6 +246,14 @@ impl NativeEngine {
             items
         } else {
             Vec::new()
+        }
+    }
+
+    pub fn set_game_mode(&self, mode: &str, puzzle_id: &str) {
+        let c_mode = std::ffi::CString::new(mode).unwrap();
+        let c_puzzle = std::ffi::CString::new(puzzle_id).unwrap();
+        unsafe {
+            (self.set_game_mode_fn)(self.game_ptr, c_mode.as_ptr(), c_puzzle.as_ptr());
         }
     }
 
