@@ -341,8 +341,8 @@ fn render_game_grid(
     
     let (view_x, view_y) = if state.enable_walls != 0 {
         (
-            (cam_x_int - view_w / 2).max(0).min(state.grid_width - view_w),
-            (cam_y - view_h / 2).max(0).min(state.grid_height - view_h),
+            (cam_x_int - view_w / 2).max(0).min(state.grid_width - view_w + 1),
+            (cam_y - view_h / 2).max(0).min(state.grid_height - view_h + 1),
         )
     } else {
         (
