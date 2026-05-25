@@ -351,10 +351,17 @@ async fn main() -> Result<()> {
 
     // Load Background
     let mut bg = BackgroundPattern::new();
+    bg.set_seed(seed);
+    
     if menu.custom_bg_loaded {
         let _ = bg.load_from_file(&menu.custom_bg_path);
     } else if menu.selected_bg_index < menu.embedded_bgs.len() {
-        bg.load_from_embedded(&menu.embedded_bgs[menu.selected_bg_index]);
+        let selected_bg = &menu.embedded_bgs[menu.selected_bg_index];
+        if selected_bg == "PROCEDURAL_CRYPTO" {
+            bg.enable_procedural();
+        } else {
+            bg.load_from_embedded(selected_bg);
+        }
     }
 
     // Create the Proprietary Engine simulation instance via FFI with full configuration

@@ -486,8 +486,11 @@ fn render_game_grid(
         if cell.cell_type == 0 {
              // No entity: Show background chars directly
              symbol_str = format!("{}{}", bg_left_char, bg_right_char);
-             // User requested text characters to match the pattern color (floor color) exactly
-             fg_color = Color::Rgb(30, 30, 30);
+             if background.is_procedural {
+                 fg_color = Color::Rgb(0, 80, 0); // Dark Green for Matrix Vibe
+             } else {
+                 fg_color = Color::Rgb(30, 30, 30); // Dark Gray for TXT Backgrounds
+             }
         } else {
             // Entity exists.
             // If background was '█', preserve the BG color!

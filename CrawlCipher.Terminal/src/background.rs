@@ -10,6 +10,8 @@ pub struct BackgroundPattern {
     pub rows: Vec<String>,
     pub width: usize,
     pub height: usize,
+    pub is_procedural: bool,
+    pub seed: i64,
 }
 
 impl BackgroundPattern {
@@ -18,10 +20,23 @@ impl BackgroundPattern {
             rows: Vec::new(),
             width: 0,
             height: 0,
+            is_procedural: false,
+            seed: 0,
         }
     }
 
+    pub fn set_seed(&mut self, seed: i64) {
+        self.seed = seed;
+    }
+
+    pub fn enable_procedural(&mut self) {
+        self.is_procedural = true;
+        self.width = 1; // So it doesn't trigger checkerboard fallback in ui.rs
+        self.height = 1;
+    }
+
     pub fn load_from_embedded(&mut self, filename: &str) -> bool {
+        self.is_procedural = false;
         if let Some(file) = Asset::get(filename) {
             let content = match file.data {
                 Cow::Borrowed(bytes) => std::str::from_utf8(bytes).unwrap_or(""),
@@ -35,6 +50,7 @@ impl BackgroundPattern {
     }
 
     pub fn load_from_file(&mut self, path: &str) -> Result<(), Box<dyn std::error::Error>> {
+        self.is_procedural = false;
         let content = fs::read_to_string(path)?;
         self.parse_content(&content);
         Ok(())
@@ -47,6 +63,29 @@ impl BackgroundPattern {
     }
 
     pub fn get_char(&self, x: i32, y: i32) -> char {
+        if self.is_procedural {
+            // Deterministic hash based on coordinates and the game's seed
+            let mut hash = self.seed as u64;
+            hash = hash.wrapping_add((x as u64).wrapping_mul(0x9E3779B185EBCA87));
+            hash ^= hash >> 33;
+            hash = hash.wrapping_mul(0xC2B2AE3D27D4EB4F);
+            hash ^= hash >> 29;
+            hash = hash.wrapping_add((y as u64).wrapping_mul(0x85EBCA77C2B2AE63));
+            hash ^= hash >> 32;
+            hash = hash.wrapping_mul(0x165667B19E3779F9);
+            hash ^= hash >> 32;
+
+            // Density threshold: 85% empty space, 15% crypto characters
+            if hash % 100 > 15 {
+                return ' ';
+            }
+
+            // Cryptography-themed character set
+            let chars = ['0', '1', 'A', 'F', 'X', 'C', '4', '8', 'E', '.', '-', '+', '|', '/', '\\', '#', '@'];
+            let idx = (hash % (chars.len() as u64)) as usize;
+            return chars[idx];
+        }
+
         if self.height == 0 {
             return ' ';
         }
@@ -61,5 +100,7 @@ impl BackgroundPattern {
 }
 
 pub fn list_embedded_backgrounds() -> Vec<String> {
-    Asset::iter().map(|f| f.to_string()).collect()
+    let mut bgs = vec!["PROCEDURAL_CRYPTO".to_string()];
+    bgs.extend(Asset::iter().map(|f| f.to_string()));
+    bgs
 }
