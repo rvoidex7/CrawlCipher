@@ -6,6 +6,8 @@ mod stellar;
 mod config;
 mod menu_ui;
 mod background;
+mod splash_screen_1;
+mod splash_screen_2;
 
 use stellar::{entropy, profile, session, profile::ProfileStats};
 
@@ -157,6 +159,10 @@ async fn main() -> Result<()> {
 
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
+
+    // Play cinematics
+    let _ = splash_screen_2::run(&mut terminal);
+    let _ = splash_screen_1::run(&mut terminal);
 
     let mut menu = MenuUI::new();
 
