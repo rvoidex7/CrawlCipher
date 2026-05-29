@@ -9,7 +9,7 @@ mod background;
 
 use stellar::{entropy, profile, session, profile::ProfileStats};
 
-use menu_ui::{MenuUI, MenuState, render_menu};
+use menu_ui::{MenuUI, MenuState, MenuAction, render_menu};
 use background::BackgroundPattern;
 use anyhow::Result;
 use clap::Parser;
@@ -165,55 +165,76 @@ async fn main() -> Result<()> {
 
     // Reset menu to main state on app restart
     menu.state = MenuState::MainMenu;
+    menu.reset_snake();
 
     // MAIN MENU LOOP
     loop {
+        // Tick the menu snake simulation
+        if matches!(menu.state, MenuState::MainMenu) {
+            menu.tick();
+
+            // Check if a dash action completed
+            if let Some(action) = menu.poll_dash_action() {
+                match action {
+                    MenuAction::InitiateProtocol => {
+                        if !menu.secret_key.is_empty() {
+                            menu.state = MenuState::MissionSelect;
+                            menu.mission_selection = 0;
+                        } else {
+                            menu.state = MenuState::CredentialsInput;
+                            menu.cred_stage = 0;
+                            menu.error_msg = None;
+                        }
+                    }
+                    MenuAction::EnterCredentials => {
+                        menu.state = MenuState::CredentialsInput;
+                        menu.cred_stage = 0;
+                        menu.error_msg = None;
+                    }
+                    MenuAction::GhostProtocol => {
+                        menu.secret_key.clear();
+                        menu.nickname = "GHOST".to_string();
+                        menu.state = MenuState::MissionSelect;
+                        menu.mission_selection = 0;
+                    }
+                    MenuAction::AcquireKey => {
+                        menu.state = MenuState::KeyInfo;
+                    }
+                    MenuAction::TerminalManual => {
+                        menu.state = MenuState::Manual;
+                    }
+                    MenuAction::SystemSettings => {
+                        menu.state = MenuState::Settings;
+                    }
+                    MenuAction::AbortMission => {
+                        break 'app_loop;
+                    }
+                }
+            }
+        }
+
         terminal.draw(|f| render_menu(f, f.size(), &menu))?;
 
-        if event::poll(Duration::from_millis(100))? {
+        if event::poll(Duration::from_millis(16))? { // ~60fps for smooth snake animation
             if let Event::Key(key) = event::read()? {
                 if key.kind != KeyEventKind::Press { continue; }
 
                 match menu.state {
                     MenuState::MainMenu => {
                         match key.code {
-                            KeyCode::Up => { if menu.main_selection > 0 { menu.main_selection -= 1; } }
-                            KeyCode::Down => { if menu.main_selection < 6 { menu.main_selection += 1; } }
-                            KeyCode::Enter => {
-                                match menu.main_selection {
-                                    0 => { // Initiate Protocol (Online)
-                                        if !menu.secret_key.is_empty() {
-                                            menu.state = MenuState::MissionSelect;
-                                            menu.mission_selection = 0;
-                                        } else {
-                                            menu.state = MenuState::CredentialsInput;
-                                            menu.cred_stage = 0;
-                                            menu.error_msg = None;
-                                        }
-                                    }
-                                    1 => { // Credentials
-                                        menu.state = MenuState::CredentialsInput;
-                                        menu.cred_stage = 0;
-                                        menu.error_msg = None;
-                                    }
-                                    2 => { // Ghost Protocol (Offline)
-                                        menu.secret_key.clear();
-                                        menu.nickname = "GHOST".to_string();
-                                        menu.state = MenuState::MissionSelect;
-                                        menu.mission_selection = 0;
-                                    }
-                                    3 => { // Acquire Key
-                                        menu.state = MenuState::KeyInfo;
-                                    }
-                                    4 => { // Terminal Manual
-                                        menu.state = MenuState::Manual;
-                                    }
-                                    5 => { // Settings
-                                        menu.state = MenuState::Settings;
-                                    }
-                                    6 => { break 'app_loop; } // Abort
-                                    _ => {}
-                                }
+                            // Arrow keys control snake direction
+                            KeyCode::Up    => { menu.snake.set_direction(0); } // North
+                            KeyCode::Right => { menu.snake.set_direction(2); } // East
+                            KeyCode::Down  => { menu.snake.set_direction(4); } // South
+                            KeyCode::Left  => { menu.snake.set_direction(6); } // West
+                            // WASD support
+                            KeyCode::Char('w') | KeyCode::Char('W') => { menu.snake.set_direction(0); }
+                            KeyCode::Char('d') | KeyCode::Char('D') => { menu.snake.set_direction(2); }
+                            KeyCode::Char('s') | KeyCode::Char('S') => { menu.snake.set_direction(4); }
+                            KeyCode::Char('a') | KeyCode::Char('A') => { menu.snake.set_direction(6); }
+                            // Dash select (Enter or F)
+                            KeyCode::Enter | KeyCode::Char('f') | KeyCode::Char('F') => {
+                                menu.trigger_dash();
                             }
                             KeyCode::Esc => { break 'app_loop; }
                             _ => {}
@@ -233,6 +254,7 @@ async fn main() -> Result<()> {
                                 } else {
                                     // Complete
                                     menu.state = MenuState::MainMenu;
+                                    menu.reset_snake();
                                 }
                             }
                             KeyCode::Backspace => {
@@ -243,7 +265,7 @@ async fn main() -> Result<()> {
                                 if menu.cred_stage == 0 { menu.secret_key.push(c); }
                                 else { menu.nickname.push(c); }
                             }
-                            KeyCode::Esc => { menu.state = MenuState::MainMenu; }
+                            KeyCode::Esc => { menu.state = MenuState::MainMenu; menu.reset_snake(); }
                             _ => {}
                         }
                     }
@@ -252,7 +274,7 @@ async fn main() -> Result<()> {
                             KeyCode::Enter => {
                                 let _ = webbrowser::open("https://laboratory.stellar.org/#account-creator?network=test");
                             }
-                            KeyCode::Esc => { menu.state = MenuState::MainMenu; }
+                            KeyCode::Esc => { menu.state = MenuState::MainMenu; menu.reset_snake(); }
                             _ => {}
                         }
                     }
@@ -270,11 +292,13 @@ async fn main() -> Result<()> {
                                     menu.selected_bg_index = menu.settings_selection;
                                     menu.custom_bg_loaded = false;
                                     menu.state = MenuState::MainMenu;
+                                    menu.reset_snake();
                                 } else if menu.settings_selection == total_len {
                                     // None
-                                    menu.selected_bg_index = total_len; // Out of bounds effectively
+                                    menu.selected_bg_index = total_len;
                                     menu.custom_bg_loaded = false;
                                     menu.state = MenuState::MainMenu;
+                                    menu.reset_snake();
                                 } else {
                                     // Custom File
                                     menu.state = MenuState::CustomBackgroundInput;
@@ -282,7 +306,7 @@ async fn main() -> Result<()> {
                                     menu.custom_bg_path.clear();
                                 }
                             }
-                            KeyCode::Esc => { menu.state = MenuState::MainMenu; }
+                            KeyCode::Esc => { menu.state = MenuState::MainMenu; menu.reset_snake(); }
                             _ => {}
                         }
                     }
@@ -294,6 +318,7 @@ async fn main() -> Result<()> {
                                 if bg.load_from_file(&menu.custom_bg_path).is_ok() {
                                     menu.custom_bg_loaded = true;
                                     menu.state = MenuState::MainMenu;
+                                    menu.reset_snake();
                                 } else {
                                     menu.error_msg = Some("FAILED TO LOAD FILE".to_string());
                                 }
@@ -307,6 +332,7 @@ async fn main() -> Result<()> {
                     MenuState::Manual => {
                         if key.code == KeyCode::Esc {
                             menu.state = MenuState::MainMenu;
+                            menu.reset_snake();
                         }
                     }
                     MenuState::MissionSelect => {
@@ -316,7 +342,7 @@ async fn main() -> Result<()> {
                             KeyCode::Enter => {
                                 break; // Break out of menu loop to start the mission
                             }
-                            KeyCode::Esc => { menu.state = MenuState::MainMenu; }
+                            KeyCode::Esc => { menu.state = MenuState::MainMenu; menu.reset_snake(); }
                             _ => {}
                         }
                     }
