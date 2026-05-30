@@ -177,14 +177,36 @@ async fn main() -> Result<()> {
 
     // MAIN MENU LOOP
     'menu_loop: loop {
-        // Tick the menu snake simulation
-        if matches!(menu.state, MenuState::MainMenu) {
+        // Tick the menu snake simulation for any snake-based menu
+        if matches!(menu.state, MenuState::MainMenu | MenuState::BlockchainMenu | MenuState::SettingsHelpMenu | MenuState::BackgroundsMenu) {
             menu.tick();
 
             // Check if a dash action completed
             if let Some(action) = menu.poll_dash_action() {
                 match action {
-                    MenuAction::InitiateProtocol => {
+                    MenuAction::MenuBlockchainPlay => {
+                        menu.state = MenuState::BlockchainMenu;
+                        menu.update_items_for_state();
+                        menu.reset_snake();
+                    }
+                    MenuAction::MenuOfflinePlay => {
+                        menu.secret_key.clear();
+                        menu.nickname = "GHOST".to_string();
+                        menu.state = MenuState::MissionSelect;
+                        menu.mission_selection = 0;
+                    }
+                    MenuAction::MenuLanP2PPlay => {
+                        // Coming Soon (do nothing or show a message later)
+                    }
+                    MenuAction::MenuSettingsHelp => {
+                        menu.state = MenuState::SettingsHelpMenu;
+                        menu.update_items_for_state();
+                        menu.reset_snake();
+                    }
+                    MenuAction::ExitTerminal => {
+                        break 'app_loop;
+                    }
+                    MenuAction::BlockchainStart => {
                         if !menu.secret_key.is_empty() {
                             menu.state = MenuState::MissionSelect;
                             menu.mission_selection = 0;
@@ -194,35 +216,31 @@ async fn main() -> Result<()> {
                             menu.error_msg = None;
                         }
                     }
-                    MenuAction::EnterCredentials => {
+                    MenuAction::BlockchainManageCreds => {
                         menu.state = MenuState::CredentialsInput;
                         menu.cred_stage = 0;
                         menu.error_msg = None;
                     }
-                    MenuAction::GhostProtocol => {
-                        menu.secret_key.clear();
-                        menu.nickname = "GHOST".to_string();
-                        menu.state = MenuState::MissionSelect;
-                        menu.mission_selection = 0;
+                    MenuAction::SettingsBackgrounds => {
+                        menu.state = MenuState::BackgroundsMenu;
+                        menu.update_items_for_state();
+                        menu.reset_snake();
                     }
-                    MenuAction::AcquireKey => {
-                        menu.state = MenuState::KeyInfo;
+                    MenuAction::SettingsHelpManual => {
+                        menu.state = MenuState::HelpManual;
                     }
-                    MenuAction::TerminalManual => {
-                        menu.state = MenuState::Manual;
+                    MenuAction::BackToMainMenu => {
+                        menu.state = MenuState::MainMenu;
+                        menu.update_items_for_state();
+                        menu.reset_snake();
                     }
-                    MenuAction::SystemSettings => {
-                        menu.state = MenuState::Settings;
-                    }
-                    MenuAction::AbortMission => {
-                        break 'app_loop;
-                    }
+                    _ => {}
                 }
             }
         }
 
         // Update layout info for mouse mapping
-        if matches!(menu.state, MenuState::MainMenu) {
+        if matches!(menu.state, MenuState::MainMenu | MenuState::BlockchainMenu | MenuState::SettingsHelpMenu | MenuState::BackgroundsMenu) {
             let term_size = terminal.size()?;
             menu.update_layout(term_size.width, term_size.height);
         }
@@ -235,7 +253,7 @@ async fn main() -> Result<()> {
                 let ev = event::read()?;
 
                 // Handle mouse events for MainMenu
-                if matches!(menu.state, MenuState::MainMenu) {
+                if matches!(menu.state, MenuState::MainMenu | MenuState::BlockchainMenu | MenuState::SettingsHelpMenu | MenuState::BackgroundsMenu) {
                     if let Event::Mouse(mouse_ev) = &ev {
                         match mouse_ev.kind {
                             MouseEventKind::Moved | MouseEventKind::Drag(_) => {
@@ -258,7 +276,10 @@ async fn main() -> Result<()> {
                     if key.kind != KeyEventKind::Press { continue; }
 
                     match menu.state {
-                        MenuState::MainMenu => {
+                        MenuState::MainMenu
+                        | MenuState::BlockchainMenu
+                        | MenuState::SettingsHelpMenu
+                        | MenuState::BackgroundsMenu => {
                             match key.code {
                                 // Arrow keys & WASD (accumulate dx/dy to support diagonal chording)
                                 KeyCode::Up | KeyCode::Char('w') | KeyCode::Char('W') => menu_input_handler.handle_key_direction(0, -1),
@@ -274,7 +295,15 @@ async fn main() -> Result<()> {
                                 KeyCode::Enter | KeyCode::Char('f') | KeyCode::Char('F') => {
                                     menu.trigger_dash();
                                 }
-                                KeyCode::Esc => { break 'app_loop; }
+                                KeyCode::Esc => {
+                                    if !matches!(menu.state, MenuState::MainMenu) {
+                                        menu.state = MenuState::MainMenu;
+                                        menu.update_items_for_state();
+                                        menu.reset_snake();
+                                    } else {
+                                        break 'app_loop;
+                                    }
+                                }
                                 _ => {}
                             }
                         }
@@ -291,7 +320,8 @@ async fn main() -> Result<()> {
                                         }
                                     } else {
                                         // Complete
-                                        menu.state = MenuState::MainMenu;
+                                        menu.state = MenuState::BlockchainMenu;
+                                        menu.update_items_for_state();
                                         menu.reset_snake();
                                     }
                             }
@@ -303,7 +333,7 @@ async fn main() -> Result<()> {
                                 if menu.cred_stage == 0 { menu.secret_key.push(c); }
                                 else { menu.nickname.push(c); }
                             }
-                            KeyCode::Esc => { menu.state = MenuState::MainMenu; menu.reset_snake(); }
+                            KeyCode::Esc => { menu.state = MenuState::BlockchainMenu; menu.update_items_for_state(); menu.reset_snake(); }
                             _ => {}
                         }
                     }
@@ -312,44 +342,11 @@ async fn main() -> Result<()> {
                             KeyCode::Enter => {
                                 let _ = webbrowser::open("https://laboratory.stellar.org/#account-creator?network=test");
                             }
-                            KeyCode::Esc => { menu.state = MenuState::MainMenu; menu.reset_snake(); }
+                            KeyCode::Esc => { menu.state = MenuState::BlockchainMenu; menu.update_items_for_state(); menu.reset_snake(); }
                             _ => {}
                         }
                     }
-                    MenuState::Settings => {
-                        match key.code {
-                            KeyCode::Up => { if menu.settings_selection > 0 { menu.settings_selection -= 1; } }
-                            KeyCode::Down => {
-                                // The count of settings items is embedded_bgs.len() + 2 (None, Custom)
-                                if menu.settings_selection < menu.embedded_bgs.len() + 1 { menu.settings_selection += 1; }
-                            }
-                            KeyCode::Enter => {
-                                let total_len = menu.embedded_bgs.len();
-                                if menu.settings_selection < total_len {
-                                    // Embedded
-                                    menu.selected_bg_index = menu.settings_selection;
-                                    menu.custom_bg_loaded = false;
-                                    menu.state = MenuState::MainMenu;
-                                    menu.reset_snake();
-                                    menu.reload_background();
-                                } else if menu.settings_selection == total_len {
-                                    // None
-                                    menu.selected_bg_index = total_len;
-                                    menu.custom_bg_loaded = false;
-                                    menu.state = MenuState::MainMenu;
-                                    menu.reset_snake();
-                                    menu.reload_background();
-                                } else {
-                                    // Custom File
-                                    menu.state = MenuState::CustomBackgroundInput;
-                                    menu.error_msg = None;
-                                    menu.custom_bg_path.clear();
-                                }
-                            }
-                            KeyCode::Esc => { menu.state = MenuState::MainMenu; menu.reset_snake(); }
-                            _ => {}
-                        }
-                    }
+
                     MenuState::CustomBackgroundInput => {
                          match key.code {
                             KeyCode::Enter => {
@@ -366,13 +363,18 @@ async fn main() -> Result<()> {
                             }
                             KeyCode::Backspace => { menu.custom_bg_path.pop(); }
                             KeyCode::Char(c) => { menu.custom_bg_path.push(c); }
-                            KeyCode::Esc => { menu.state = MenuState::Settings; }
+                            KeyCode::Esc => {
+                                menu.state = MenuState::BackgroundsMenu;
+                                menu.update_items_for_state();
+                                menu.reset_snake();
+                            }
                             _ => {}
                          }
                     }
-                    MenuState::Manual => {
+                    MenuState::HelpManual => {
                         if key.code == KeyCode::Esc {
-                            menu.state = MenuState::MainMenu;
+                            menu.state = MenuState::SettingsHelpMenu;
+                            menu.update_items_for_state();
                             menu.reset_snake();
                         }
                     }

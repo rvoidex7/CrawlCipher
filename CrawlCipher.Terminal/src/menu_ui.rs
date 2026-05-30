@@ -13,13 +13,23 @@ use crate::background;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum MenuAction {
-    InitiateProtocol,  // 0
-    EnterCredentials,  // 1
-    GhostProtocol,     // 2
-    AcquireKey,        // 3
-    TerminalManual,    // 4
-    SystemSettings,    // 5
-    AbortMission,      // 6
+    // Main Menu
+    MenuBlockchainPlay,
+    MenuOfflinePlay,
+    MenuLanP2PPlay,
+    MenuSettingsHelp,
+    ExitTerminal,
+
+    // Blockchain Menu
+    BlockchainStart,
+    BlockchainManageCreds,
+
+    // Settings/Help Menu
+    SettingsBackgrounds,
+    SettingsHelpManual,
+
+    // Navigation
+    BackToMainMenu,
 }
 
 // ===== Menu Item =====
@@ -270,12 +280,16 @@ impl MenuSnake {
 
 pub enum MenuState {
     MainMenu,
+    BlockchainMenu,
+    SettingsHelpMenu,
+    BackgroundsMenu,
+
+    // Classic dialogs
     CredentialsInput,
     KeyInfo,
-    Settings,
     CustomBackgroundInput,
     MissionSelect,
-    Manual,
+    HelpManual,
 }
 
 // ===== Menu UI =====
@@ -323,51 +337,7 @@ impl MenuUI {
         // Place snake in center of the grid
         let snake = MenuSnake::new(grid_w / 2.0, grid_h / 2.0);
 
-        // Menu items positioned across the grid
-        let menu_items = vec![
-            MenuItem {
-                label: "[ INITIATE PROTOCOL ]".to_string(),
-                x: 0.50, y: 0.22,
-                action: MenuAction::InitiateProtocol,
-                is_focused: false,
-            },
-            MenuItem {
-                label: "[ ENTER CREDENTIALS ]".to_string(),
-                x: 0.22, y: 0.40,
-                action: MenuAction::EnterCredentials,
-                is_focused: false,
-            },
-            MenuItem {
-                label: "[ GHOST PROTOCOL ]".to_string(),
-                x: 0.75, y: 0.40,
-                action: MenuAction::GhostProtocol,
-                is_focused: false,
-            },
-            MenuItem {
-                label: "[ ACQUIRE ACCESS KEY ]".to_string(),
-                x: 0.50, y: 0.55,
-                action: MenuAction::AcquireKey,
-                is_focused: false,
-            },
-            MenuItem {
-                label: "[ TERMINAL MANUAL ]".to_string(),
-                x: 0.22, y: 0.70,
-                action: MenuAction::TerminalManual,
-                is_focused: false,
-            },
-            MenuItem {
-                label: "[ SYSTEM SETTINGS ]".to_string(),
-                x: 0.75, y: 0.70,
-                action: MenuAction::SystemSettings,
-                is_focused: false,
-            },
-            MenuItem {
-                label: "[ ABORT MISSION ]".to_string(),
-                x: 0.50, y: 0.85,
-                action: MenuAction::AbortMission,
-                is_focused: false,
-            },
-        ];
+        let menu_items = vec![];
 
         let mut ui = Self {
             secret_key: String::new(),
@@ -399,8 +369,47 @@ impl MenuUI {
 
             mouse_focus_active: false,
         };
+        ui.update_items_for_state();
         ui.reload_background();
         ui
+    }
+
+    pub fn update_items_for_state(&mut self) {
+        self.menu_items.clear();
+        self.focused_index = None;
+        self.snake.clear_dash_action();
+
+        match self.state {
+            MenuState::MainMenu => {
+                self.menu_items = vec![
+                    MenuItem { label: "[ BLOCKCHAIN PLAY ]".to_string(), x: 0.50, y: 0.22, action: MenuAction::MenuBlockchainPlay, is_focused: false },
+                    MenuItem { label: "[ OFFLINE PLAY ]".to_string(), x: 0.22, y: 0.45, action: MenuAction::MenuOfflinePlay, is_focused: false },
+                    MenuItem { label: "[ LAN / P2P PLAY ]".to_string(), x: 0.78, y: 0.45, action: MenuAction::MenuLanP2PPlay, is_focused: false },
+                    MenuItem { label: "[ SETTINGS / HELP ]".to_string(), x: 0.50, y: 0.65, action: MenuAction::MenuSettingsHelp, is_focused: false },
+                    MenuItem { label: "[ EXIT TERMINAL ]".to_string(), x: 0.50, y: 0.85, action: MenuAction::ExitTerminal, is_focused: false },
+                ];
+            }
+            MenuState::BlockchainMenu => {
+                self.menu_items = vec![
+                    MenuItem { label: "[ START ]".to_string(), x: 0.50, y: 0.35, action: MenuAction::BlockchainStart, is_focused: false },
+                    MenuItem { label: "[ MANAGE CREDENTIALS ]".to_string(), x: 0.50, y: 0.55, action: MenuAction::BlockchainManageCreds, is_focused: false },
+                    MenuItem { label: "[ BACK ]".to_string(), x: 0.50, y: 0.75, action: MenuAction::BackToMainMenu, is_focused: false },
+                ];
+            }
+            MenuState::SettingsHelpMenu => {
+                self.menu_items = vec![
+                    MenuItem { label: "[ BACKGROUNDS ]".to_string(), x: 0.50, y: 0.35, action: MenuAction::SettingsBackgrounds, is_focused: false },
+                    MenuItem { label: "[ HELP ]".to_string(), x: 0.50, y: 0.55, action: MenuAction::SettingsHelpManual, is_focused: false },
+                    MenuItem { label: "[ BACK ]".to_string(), x: 0.50, y: 0.75, action: MenuAction::BackToMainMenu, is_focused: false },
+                ];
+            }
+            MenuState::BackgroundsMenu => {
+                self.menu_items = vec![
+                    MenuItem { label: "[ BACK ]".to_string(), x: 0.50, y: 0.85, action: MenuAction::BackToMainMenu, is_focused: false },
+                ];
+            }
+            _ => {}
+        }
     }
 
     pub fn reload_background(&mut self) {
@@ -633,7 +642,11 @@ impl MenuUI {
 
 pub fn render_menu(frame: &mut Frame, area: Rect, ui: &MenuUI) {
     match ui.state {
-        MenuState::MainMenu => render_snake_menu(frame, area, ui),
+        MenuState::MainMenu
+        | MenuState::BlockchainMenu
+        | MenuState::SettingsHelpMenu
+        | MenuState::BackgroundsMenu => render_snake_menu(frame, area, ui),
+        
         MenuState::CredentialsInput => {
             render_classic_bg(frame, area);
             render_credentials_input(frame, area, ui);
@@ -641,10 +654,6 @@ pub fn render_menu(frame: &mut Frame, area: Rect, ui: &MenuUI) {
         MenuState::KeyInfo => {
             render_classic_bg(frame, area);
             render_key_info(frame, area);
-        }
-        MenuState::Settings => {
-            render_classic_bg(frame, area);
-            render_settings(frame, area, ui);
         }
         MenuState::CustomBackgroundInput => {
             render_classic_bg(frame, area);
@@ -654,7 +663,7 @@ pub fn render_menu(frame: &mut Frame, area: Rect, ui: &MenuUI) {
             render_classic_bg(frame, area);
             render_mission_select(frame, area, ui);
         }
-        MenuState::Manual => {
+        MenuState::HelpManual => {
             render_classic_bg(frame, area);
             render_manual(frame, area);
         }
