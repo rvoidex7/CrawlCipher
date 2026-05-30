@@ -260,22 +260,20 @@ async fn main() -> Result<()> {
                     MenuState::MainMenu => {
                         match key.code {
                             // Arrow keys control snake direction (4 cardinal)
-                            KeyCode::Up    => { menu.snake.set_direction(0); } // North
-                            KeyCode::Right => { menu.snake.set_direction(2); } // East
-                            KeyCode::Down  => { menu.snake.set_direction(4); } // South
-                            KeyCode::Left  => { menu.snake.set_direction(6); } // West
-                            // WASD - also supports diagonals via sequential presses
-                            // W=N, D=E, S=S, A=W, and combos for diagonals are handled
-                            // by the approach system; individual keys set cardinal directions
-                            KeyCode::Char('w') | KeyCode::Char('W') => { menu.snake.set_direction(0); }
-                            KeyCode::Char('d') | KeyCode::Char('D') => { menu.snake.set_direction(2); }
-                            KeyCode::Char('s') | KeyCode::Char('S') => { menu.snake.set_direction(4); }
-                            KeyCode::Char('a') | KeyCode::Char('A') => { menu.snake.set_direction(6); }
+                            KeyCode::Up    => { menu.mouse_focus_active = false; menu.snake.set_direction(0); }
+                            KeyCode::Right => { menu.mouse_focus_active = false; menu.snake.set_direction(2); }
+                            KeyCode::Down  => { menu.mouse_focus_active = false; menu.snake.set_direction(4); }
+                            KeyCode::Left  => { menu.mouse_focus_active = false; menu.snake.set_direction(6); }
+                            // WASD
+                            KeyCode::Char('w') | KeyCode::Char('W') => { menu.mouse_focus_active = false; menu.snake.set_direction(0); }
+                            KeyCode::Char('d') | KeyCode::Char('D') => { menu.mouse_focus_active = false; menu.snake.set_direction(2); }
+                            KeyCode::Char('s') | KeyCode::Char('S') => { menu.mouse_focus_active = false; menu.snake.set_direction(4); }
+                            KeyCode::Char('a') | KeyCode::Char('A') => { menu.mouse_focus_active = false; menu.snake.set_direction(6); }
                             // Diagonal shortcuts: Q=NW, E=NE, Z=SW, C=SE
-                            KeyCode::Char('q') | KeyCode::Char('Q') => { menu.snake.set_direction(7); } // NW
-                            KeyCode::Char('e') | KeyCode::Char('E') => { menu.snake.set_direction(1); } // NE
-                            KeyCode::Char('z') | KeyCode::Char('Z') => { menu.snake.set_direction(5); } // SW
-                            KeyCode::Char('c') | KeyCode::Char('C') => { menu.snake.set_direction(3); } // SE
+                            KeyCode::Char('q') | KeyCode::Char('Q') => { menu.mouse_focus_active = false; menu.snake.set_direction(7); }
+                            KeyCode::Char('e') | KeyCode::Char('E') => { menu.mouse_focus_active = false; menu.snake.set_direction(1); }
+                            KeyCode::Char('z') | KeyCode::Char('Z') => { menu.mouse_focus_active = false; menu.snake.set_direction(5); }
+                            KeyCode::Char('c') | KeyCode::Char('C') => { menu.mouse_focus_active = false; menu.snake.set_direction(3); }
                             // Dash select (Enter or F)
                             KeyCode::Enter | KeyCode::Char('f') | KeyCode::Char('F') => {
                                 menu.trigger_dash();

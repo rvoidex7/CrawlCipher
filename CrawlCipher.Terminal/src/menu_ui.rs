@@ -312,6 +312,9 @@ pub struct MenuUI {
     pub layout_game_area_h: u16,
     pub layout_view_x: i32,
     pub layout_view_y: i32,
+
+    // Mouse focus override: when true, update_focus() won't recalculate from snake direction
+    pub mouse_focus_active: bool,
 }
 
 impl MenuUI {
@@ -394,6 +397,8 @@ impl MenuUI {
             layout_game_area_h: 0,
             layout_view_x: 0,
             layout_view_y: 0,
+
+            mouse_focus_active: false,
         }
     }
 
@@ -415,6 +420,17 @@ impl MenuUI {
     fn update_focus(&mut self) {
         if self.snake.is_dashing {
             return; // Don't change focus during dash
+        }
+
+        // If mouse set the focus, don't override it with snake direction
+        // The snake will approach the mouse-selected item instead
+        if self.mouse_focus_active {
+            // Still update approach target to ensure snake heads there
+            if let Some(idx) = self.focused_index {
+                let item = &self.menu_items[idx];
+                self.snake.approach_target = Some((item.x * self.grid_width, item.y * self.grid_height));
+            }
+            return;
         }
 
         let head = self.snake.head();
@@ -524,6 +540,9 @@ impl MenuUI {
             self.snake.user_steering = false;
             self.snake.user_steer_cooldown = 0.0;
 
+            // Lock focus to mouse selection
+            self.mouse_focus_active = true;
+
             true
         } else {
             false
@@ -585,6 +604,7 @@ impl MenuUI {
     pub fn reset_snake(&mut self) {
         self.snake = MenuSnake::new(self.grid_width / 2.0, self.grid_height / 2.0);
         self.last_tick = Instant::now();
+        self.mouse_focus_active = false;
     }
 }
 
