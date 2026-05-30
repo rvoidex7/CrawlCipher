@@ -293,6 +293,8 @@ pub struct MenuUI {
     pub custom_bg_loaded: bool,
     pub mission_selection: usize,
 
+    pub bg_pattern: background::BackgroundPattern,
+
     // New: Snake menu system
     pub snake: MenuSnake,
     pub menu_items: Vec<MenuItem>,
@@ -367,7 +369,7 @@ impl MenuUI {
             },
         ];
 
-        Self {
+        let mut ui = Self {
             secret_key: String::new(),
             nickname: "Pilot".to_string(),
             state: MenuState::MainMenu,
@@ -379,6 +381,7 @@ impl MenuUI {
             custom_bg_path: String::new(),
             custom_bg_loaded: false,
             mission_selection: 0,
+            bg_pattern: background::BackgroundPattern::new(),
 
             snake,
             menu_items,
@@ -395,7 +398,20 @@ impl MenuUI {
             layout_view_y: 0,
 
             mouse_focus_active: false,
+        };
+        ui.reload_background();
+        ui
+    }
+
+    pub fn reload_background(&mut self) {
+        let mut bg = background::BackgroundPattern::new();
+        if self.custom_bg_loaded {
+            let _ = bg.load_from_file(&self.custom_bg_path);
+        } else if self.selected_bg_index < self.embedded_bgs.len() {
+            let filename = &self.embedded_bgs[self.selected_bg_index];
+            bg.load_from_embedded(filename);
         }
+        self.bg_pattern = bg;
     }
 
     /// Update the snake simulation and focus system. Call every frame.
@@ -677,7 +693,7 @@ fn render_snake_menu(frame: &mut Frame, area: Rect, ui: &MenuUI) {
     let view_x = (grid_w / 2 - view_w / 2).max(0);
     let view_y = (grid_h / 2 - view_h / 2).max(0);
 
-    // 1. Render checkerboard background (no headers)
+    // 1. Render background pattern (matching in-game background)
     for cy in 0..view_h.min(grid_h) {
         for cx in 0..view_w.min(grid_w) {
             let world_x = view_x + cx;
@@ -690,15 +706,29 @@ fn render_snake_menu(frame: &mut Frame, area: Rect, ui: &MenuUI) {
                 continue;
             }
 
-            let is_even = (world_x + world_y) % 2 == 0;
-            let bg_color = if is_even {
-                Color::Rgb(6, 6, 12)
+            let (bg_color, bg_left_char, bg_right_char) = if ui.bg_pattern.width == 0 {
+                let is_even = (world_x + world_y).rem_euclid(2) == 0;
+                let c = if is_even { Color::Rgb(6, 6, 12) } else { Color::Rgb(12, 12, 20) };
+                (c, ' ', ' ')
             } else {
-                Color::Rgb(12, 12, 20)
+                let c1 = ui.bg_pattern.get_char(world_x * 2, world_y);
+                let c2 = ui.bg_pattern.get_char(world_x * 2 + 1, world_y);
+                if c1 == '█' {
+                    (Color::Rgb(30, 30, 30), ' ', ' ')
+                } else {
+                    (Color::Reset, c1, c2)
+                }
             };
 
-            let style = Style::default().bg(bg_color).fg(Color::Rgb(20, 20, 35));
-            buf.set_string(screen_x, screen_y, "  ", style);
+            let fg_color = if ui.bg_pattern.is_procedural {
+                Color::Rgb(0, 80, 0)
+            } else {
+                Color::Rgb(30, 30, 30)
+            };
+
+            let style = Style::default().bg(bg_color).fg(fg_color);
+            let text = format!("{}{}", bg_left_char, bg_right_char);
+            buf.set_string(screen_x, screen_y, &text, style);
         }
     }
 

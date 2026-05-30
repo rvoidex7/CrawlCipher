@@ -331,12 +331,14 @@ async fn main() -> Result<()> {
                                     menu.custom_bg_loaded = false;
                                     menu.state = MenuState::MainMenu;
                                     menu.reset_snake();
+                                    menu.reload_background();
                                 } else if menu.settings_selection == total_len {
                                     // None
                                     menu.selected_bg_index = total_len;
                                     menu.custom_bg_loaded = false;
                                     menu.state = MenuState::MainMenu;
                                     menu.reset_snake();
+                                    menu.reload_background();
                                 } else {
                                     // Custom File
                                     menu.state = MenuState::CustomBackgroundInput;
@@ -357,6 +359,7 @@ async fn main() -> Result<()> {
                                     menu.custom_bg_loaded = true;
                                     menu.state = MenuState::MainMenu;
                                     menu.reset_snake();
+                                    menu.reload_background();
                                 } else {
                                     menu.error_msg = Some("FAILED TO LOAD FILE".to_string());
                                 }
