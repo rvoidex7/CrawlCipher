@@ -11,7 +11,7 @@ use crossterm::event::{self, Event, KeyCode};
 use ratatui::buffer::Buffer;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Color, Style, Modifier};
-use ratatui::widgets::{Block, Borders, Paragraph};
+use ratatui::widgets::{Block, Padding, Paragraph};
 use ratatui::{backend::Backend, Frame, Terminal};
 
 const LOGO_LINES: [&str; 5] = [
@@ -503,8 +503,8 @@ impl App {
 
         // Center Stacked Layout
         // Mascot Height: 16 (32 rows of ascii art / 2)
-        // Text Box Height: 9. Total Height: 25
-        let stack_height = 25;
+        // Text Box Height: 7 (reduced padding). Total Height: 23
+        let stack_height = 23;
         let stack_width = 62;
 
         let mut start_y = area.y;
@@ -514,7 +514,7 @@ impl App {
 
         let main_v = Layout::vertical([
             Constraint::Length(16), // Mascot Area
-            Constraint::Length(9),  // Big Text Area
+            Constraint::Length(7),  // Big Text Area
         ]);
 
         let combined_rect = Rect::new(
@@ -567,28 +567,11 @@ impl App {
         // --- 2. RATATUI OUTLINES AND TEXT ANIMATION ---
         if global_t >= 1.0 {
             let block = Block::default()
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(Color::Rgb(120, 120, 120)));
+                .padding(Padding::new(2, 2, 1, 1))
+                .style(Style::default().bg(Color::Rgb(120, 120, 120)));
             
             let inner_text_area = block.inner(text_box_area);
             frame.render_widget(block, text_box_area);
-
-            // Padding to center the text
-            let text_v_layout = Layout::vertical([
-                Constraint::Length(1), // Top padding
-                Constraint::Length(5), // Text height
-                Constraint::Min(0),
-            ]);
-            let chunks_v = text_v_layout.split(inner_text_area);
-            let text_area_v = chunks_v[1];
-
-            let text_h_layout = Layout::horizontal([
-                Constraint::Length(1), // Left padding
-                Constraint::Length(58), // Text width
-                Constraint::Min(0),
-            ]);
-            let chunks_h = text_h_layout.split(text_area_v);
-            let text_area = chunks_h[1];
 
             // Text animation step
             let morph_t = global_t - 1.0;
@@ -611,7 +594,7 @@ impl App {
             let ascii_paragraph = Paragraph::new(logo_text)
                 .style(Style::default().fg(Color::Rgb(255, 255, 255)).add_modifier(Modifier::BOLD));
             
-            frame.render_widget(ascii_paragraph, text_area);
+            frame.render_widget(ascii_paragraph, inner_text_area);
         }
     }
 }
