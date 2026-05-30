@@ -16,7 +16,7 @@ use background::BackgroundPattern;
 use anyhow::Result;
 use clap::Parser;
 use crossterm::{
-    event::{self, Event, KeyCode, KeyEvent, KeyModifiers, KeyEventKind},
+    event::{self, Event, KeyCode, KeyEvent, KeyModifiers, KeyEventKind, MouseEventKind, EnableMouseCapture, DisableMouseCapture},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
@@ -155,7 +155,7 @@ async fn main() -> Result<()> {
     // Initialize terminal
     enable_raw_mode()?;
     let mut stdout = stdout();
-    execute!(stdout, EnterAlternateScreen)?;
+    execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
 
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
@@ -219,25 +219,63 @@ async fn main() -> Result<()> {
             }
         }
 
+        // Update layout info for mouse mapping
+        if matches!(menu.state, MenuState::MainMenu) {
+            let term_size = terminal.size()?;
+            menu.update_layout(term_size.width, term_size.height);
+        }
+
         terminal.draw(|f| render_menu(f, f.size(), &menu))?;
 
         if event::poll(Duration::from_millis(16))? { // ~60fps for smooth snake animation
-            if let Event::Key(key) = event::read()? {
+            let ev = event::read()?;
+
+            // Handle mouse events for MainMenu
+            if matches!(menu.state, MenuState::MainMenu) {
+                match &ev {
+                    Event::Mouse(mouse_ev) => {
+                        match mouse_ev.kind {
+                            MouseEventKind::Moved | MouseEventKind::Drag(_) => {
+                                // Mouse hover: focus nearest item
+                                menu.focus_by_screen_pos(mouse_ev.column, mouse_ev.row);
+                            }
+                            MouseEventKind::Down(_) => {
+                                // Mouse click: focus + trigger dash
+                                if menu.focus_by_screen_pos(mouse_ev.column, mouse_ev.row) {
+                                    menu.trigger_dash();
+                                }
+                            }
+                            _ => {}
+                        }
+                        continue;
+                    }
+                    _ => {}
+                }
+            }
+
+            if let Event::Key(key) = ev {
                 if key.kind != KeyEventKind::Press { continue; }
 
                 match menu.state {
                     MenuState::MainMenu => {
                         match key.code {
-                            // Arrow keys control snake direction
+                            // Arrow keys control snake direction (4 cardinal)
                             KeyCode::Up    => { menu.snake.set_direction(0); } // North
                             KeyCode::Right => { menu.snake.set_direction(2); } // East
                             KeyCode::Down  => { menu.snake.set_direction(4); } // South
                             KeyCode::Left  => { menu.snake.set_direction(6); } // West
-                            // WASD support
+                            // WASD - also supports diagonals via sequential presses
+                            // W=N, D=E, S=S, A=W, and combos for diagonals are handled
+                            // by the approach system; individual keys set cardinal directions
                             KeyCode::Char('w') | KeyCode::Char('W') => { menu.snake.set_direction(0); }
                             KeyCode::Char('d') | KeyCode::Char('D') => { menu.snake.set_direction(2); }
                             KeyCode::Char('s') | KeyCode::Char('S') => { menu.snake.set_direction(4); }
                             KeyCode::Char('a') | KeyCode::Char('A') => { menu.snake.set_direction(6); }
+                            // Diagonal shortcuts: Q=NW, E=NE, Z=SW, C=SE
+                            KeyCode::Char('q') | KeyCode::Char('Q') => { menu.snake.set_direction(7); } // NW
+                            KeyCode::Char('e') | KeyCode::Char('E') => { menu.snake.set_direction(1); } // NE
+                            KeyCode::Char('z') | KeyCode::Char('Z') => { menu.snake.set_direction(5); } // SW
+                            KeyCode::Char('c') | KeyCode::Char('C') => { menu.snake.set_direction(3); } // SE
                             // Dash select (Enter or F)
                             KeyCode::Enter | KeyCode::Char('f') | KeyCode::Char('F') => {
                                 menu.trigger_dash();
@@ -671,7 +709,7 @@ async fn main() -> Result<()> {
 
     // Cleanup terminal
     disable_raw_mode()?;
-    execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
+    execute!(terminal.backend_mut(), LeaveAlternateScreen, DisableMouseCapture)?;
     terminal.show_cursor()?;
 
     Ok(())

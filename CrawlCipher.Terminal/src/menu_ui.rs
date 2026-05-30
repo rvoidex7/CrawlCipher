@@ -49,6 +49,10 @@ pub struct MenuSnake {
     pub trail: Vec<(f64, f64, f64)>, // (x, y, opacity) for dash trail effect
     pub idle_time: f64,              // Time since last input
     pub tail_wave_phase: f64,        // For idle tail animation
+    pub approach_target: Option<(f64, f64)>, // Target to approach (focused item position)
+    pub is_approaching: bool,        // True when auto-navigating toward target
+    pub user_steering: bool,         // True when user is actively pressing direction keys
+    pub user_steer_cooldown: f64,    // Seconds remaining of user-steering override
 }
 
 impl MenuSnake {
@@ -71,6 +75,10 @@ impl MenuSnake {
             trail: Vec::new(),
             idle_time: 0.0,
             tail_wave_phase: 0.0,
+            approach_target: None,
+            is_approaching: false,
+            user_steering: false,
+            user_steer_cooldown: 0.0,
         }
     }
 
@@ -85,6 +93,8 @@ impl MenuSnake {
             if diff != 4 {
                 self.direction = dir;
                 self.idle_time = 0.0;
+                self.user_steering = true;
+                self.user_steer_cooldown = 0.8; // User has priority for 0.8s
             }
         }
     }
@@ -147,6 +157,48 @@ impl MenuSnake {
             return;
         }
 
+        // User steering cooldown
+        if self.user_steer_cooldown > 0.0 {
+            self.user_steer_cooldown -= dt;
+            if self.user_steer_cooldown <= 0.0 {
+                self.user_steering = false;
+                self.user_steer_cooldown = 0.0;
+            }
+        }
+
+        // Auto-approach: steer toward approach_target if not user-steering
+        if !self.user_steering {
+            if let Some(target) = self.approach_target {
+                let head = self.body[0];
+                let dx = target.0 - head.0;
+                let dy = target.1 - head.1;
+                let dist = (dx * dx + dy * dy).sqrt();
+
+                // Stop distance: close enough but not on top of the item
+                let stop_distance = 5.0;
+
+                if dist > stop_distance {
+                    self.is_approaching = true;
+                    // Calculate best direction toward target
+                    let angle = dy.atan2(dx);
+                    let best_dir = Self::angle_to_direction(angle);
+
+                    // Prevent 180-degree reversal during approach too
+                    let diff = (best_dir - self.direction + 8) % 8;
+                    if diff != 4 {
+                        self.direction = best_dir;
+                    }
+                } else {
+                    self.is_approaching = false;
+                    // Near item: just idle, stay still by not moving
+                    // But still update wave phase for visual life
+                    return;
+                }
+            } else {
+                self.is_approaching = false;
+            }
+        }
+
         // Normal movement
         self.move_timer += dt;
         if self.move_timer >= self.move_interval {
@@ -166,6 +218,32 @@ impl MenuSnake {
                 self.body[i] = self.body[i - 1];
             }
             self.body[0] = (wrapped_x, wrapped_y);
+        }
+    }
+
+    /// Convert a math angle (radians) to the nearest 8-direction index
+    fn angle_to_direction(angle: f64) -> i32 {
+        // angle: atan2(dy, dx)
+        // Map to 0..2PI
+        let a = (angle + 2.0 * std::f64::consts::PI) % (2.0 * std::f64::consts::PI);
+        // Each direction spans PI/4 (45 degrees)
+        // Direction 2 (East) = 0 rad, so offset
+        // dir 0=N(-PI/2), 1=NE(-PI/4), 2=E(0), 3=SE(PI/4), 4=S(PI/2), 5=SW(3PI/4), 6=W(PI), 7=NW(-3PI/4)
+        // Mapping: direction = round(angle / (PI/4)) mapped to our convention
+        // Our dir 0 = N = angle -PI/2 = 3PI/2 in [0,2PI]
+        // Use: sector = (a + PI/8) / (PI/4) → 0=E,1=SE,2=S,3=SW,4=W,5=NW,6=N,7=NE
+        let sector = ((a + std::f64::consts::FRAC_PI_8) / std::f64::consts::FRAC_PI_4).floor() as i32 % 8;
+        // Map sector to our direction system
+        match sector {
+            0 => 2, // E
+            1 => 3, // SE
+            2 => 4, // S
+            3 => 5, // SW
+            4 => 6, // W
+            5 => 7, // NW
+            6 => 0, // N
+            7 => 1, // NE
+            _ => 2,
         }
     }
 
@@ -226,6 +304,14 @@ pub struct MenuUI {
     pub last_tick: Instant,
     pub grid_width: f64,
     pub grid_height: f64,
+
+    // Layout info for mouse coordinate mapping (set during render)
+    pub layout_game_area_x: u16,
+    pub layout_game_area_y: u16,
+    pub layout_game_area_w: u16,
+    pub layout_game_area_h: u16,
+    pub layout_view_x: i32,
+    pub layout_view_y: i32,
 }
 
 impl MenuUI {
@@ -301,6 +387,13 @@ impl MenuUI {
             last_tick: Instant::now(),
             grid_width: grid_w,
             grid_height: grid_h,
+
+            layout_game_area_x: 0,
+            layout_game_area_y: 0,
+            layout_game_area_w: 0,
+            layout_game_area_h: 0,
+            layout_view_x: 0,
+            layout_view_y: 0,
         }
     }
 
@@ -325,22 +418,6 @@ impl MenuUI {
         }
 
         let head = self.snake.head();
-        // Convert to standard math angles: 0=N means -PI/2 in math coords (up)
-        // Direction 0=N → angle = -PI/2
-        // Direction 2=E → angle = 0
-        // Direction 4=S → angle = PI/2
-        // Direction 6=W → angle = PI
-        // General formula: math_angle = (direction - 2) * PI/4  ... but direction 0=N
-        // Actually: direction 0 = North = (0, -1) → atan2(-1, 0) = -PI/2
-        // Direction mapping:
-        // 0: N  → (0,-1)  → atan2(-1, 0) = -π/2
-        // 1: NE → (1,-1)  → atan2(-1, 1) = -π/4
-        // 2: E  → (1, 0)  → atan2(0, 1)  = 0
-        // 3: SE → (1, 1)  → atan2(1, 1)  = π/4
-        // 4: S  → (0, 1)  → atan2(1, 0)  = π/2
-        // 5: SW → (-1,1)  → atan2(1,-1)  = 3π/4
-        // 6: W  → (-1,0)  → atan2(0,-1)  = π
-        // 7: NW → (-1,-1) → atan2(-1,-1) = -3π/4
 
         let (sdx, sdy) = MenuSnake::direction_delta(self.snake.direction);
         let snake_angle = sdy.atan2(sdx);
@@ -385,6 +462,72 @@ impl MenuUI {
             item.is_focused = best_index == Some(i);
         }
         self.focused_index = best_index;
+
+        // Set approach target for the focused item
+        if let Some(idx) = self.focused_index {
+            let item = &self.menu_items[idx];
+            self.snake.approach_target = Some((item.x * self.grid_width, item.y * self.grid_height));
+        } else {
+            self.snake.approach_target = None;
+        }
+    }
+
+    /// Focus an item by mouse screen position (terminal coordinates).
+    /// Returns true if an item was focused.
+    pub fn focus_by_screen_pos(&mut self, screen_x: u16, screen_y: u16) -> bool {
+        // Convert screen coords to grid coords using stored layout info
+        let ga_x = self.layout_game_area_x;
+        let ga_y = self.layout_game_area_y;
+        let ga_w = self.layout_game_area_w;
+        let ga_h = self.layout_game_area_h;
+
+        if screen_x < ga_x || screen_y < ga_y { return false; }
+        if screen_x >= ga_x + ga_w || screen_y >= ga_y + ga_h { return false; }
+
+        // Each grid cell = 2 terminal chars wide, 1 char tall
+        let grid_x = self.layout_view_x + ((screen_x - ga_x) / 2) as i32;
+        let grid_y = self.layout_view_y + (screen_y - ga_y) as i32;
+
+        // Find closest menu item to this grid position
+        let mut best_index: Option<usize> = None;
+        let mut best_dist = f64::MAX;
+
+        for (i, item) in self.menu_items.iter().enumerate() {
+            let item_world_x = item.x * self.grid_width;
+            let item_world_y = item.y * self.grid_height;
+
+            // Item label occupies a horizontal range
+            let label_half_w = item.label.len() as f64 / 4.0; // In grid cells
+            let dx = (grid_x as f64 - item_world_x).abs() - label_half_w;
+            let dx = dx.max(0.0); // 0 if inside label width
+            let dy = (grid_y as f64 - item_world_y).abs();
+
+            let dist = (dx * dx + dy * dy).sqrt();
+
+            // Only match if reasonably close (within ~3 grid cells)
+            if dist < 3.0 && dist < best_dist {
+                best_dist = dist;
+                best_index = Some(i);
+            }
+        }
+
+        if let Some(idx) = best_index {
+            // Update focus
+            for (i, item) in self.menu_items.iter_mut().enumerate() {
+                item.is_focused = i == idx;
+            }
+            self.focused_index = Some(idx);
+
+            // Also steer snake toward this item
+            let item = &self.menu_items[idx];
+            self.snake.approach_target = Some((item.x * self.grid_width, item.y * self.grid_height));
+            self.snake.user_steering = false;
+            self.snake.user_steer_cooldown = 0.0;
+
+            true
+        } else {
+            false
+        }
     }
 
     /// Trigger dash toward the focused menu item
@@ -410,6 +553,32 @@ impl MenuUI {
             self.snake.clear_dash_action();
         }
         action
+    }
+
+    /// Update layout info for mouse coordinate mapping. Call with terminal size each frame.
+    pub fn update_layout(&mut self, area_width: u16, area_height: u16) {
+        let title_h: u16 = 4;
+        let status_h: u16 = 2;
+
+        let ga_x: u16 = 0;
+        let ga_y: u16 = title_h;
+        let ga_w: u16 = area_width;
+        let ga_h: u16 = area_height.saturating_sub(title_h + status_h);
+
+        let grid_w = self.grid_width as i32;
+        let grid_h = self.grid_height as i32;
+        let view_w = (ga_w / 2) as i32;
+        let view_h = ga_h as i32;
+
+        let view_x = (grid_w / 2 - view_w / 2).max(0);
+        let view_y = (grid_h / 2 - view_h / 2).max(0);
+
+        self.layout_game_area_x = ga_x;
+        self.layout_game_area_y = ga_y;
+        self.layout_game_area_w = ga_w;
+        self.layout_game_area_h = ga_h;
+        self.layout_view_x = view_x;
+        self.layout_view_y = view_y;
     }
 
     /// Reset snake position (after returning from submenu)
