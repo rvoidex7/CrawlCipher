@@ -88,14 +88,10 @@ impl MenuSnake {
 
     pub fn set_direction(&mut self, dir: i32) {
         if dir >= 0 && dir < 8 {
-            // Prevent 180-degree reversal
-            let diff = (dir - self.direction + 8) % 8;
-            if diff != 4 {
-                self.direction = dir;
-                self.idle_time = 0.0;
-                self.user_steering = true;
-                self.user_steer_cooldown = 0.8; // User has priority for 0.8s
-            }
+            self.direction = dir;
+            self.idle_time = 0.0;
+            self.user_steering = true;
+            self.user_steer_cooldown = 0.8; // User has priority for 0.8s
         }
     }
 
@@ -460,11 +456,9 @@ impl MenuUI {
 
             let abs_angle_diff = angle_diff.abs();
 
-            // Only consider items within ~90 degree cone (PI/2)
-            if abs_angle_diff > std::f64::consts::FRAC_PI_2 { continue; }
-
             // Score: weighted combination of angle difference and distance
-            // Prefer items the snake is pointing directly at, then closer ones
+            // Items directly in front will have a very small angle difference.
+            // Items behind will have angle difference ~PI (which penalizes them heavily).
             let score = abs_angle_diff * 3.0 + dist * 0.05;
 
             if score < best_score {

@@ -228,12 +228,16 @@ async fn main() -> Result<()> {
         terminal.draw(|f| render_menu(f, f.size(), &menu))?;
 
         if event::poll(Duration::from_millis(16))? { // ~60fps for smooth snake animation
-            let ev = event::read()?;
+            let mut move_dx: i32 = 0;
+            let mut move_dy: i32 = 0;
 
-            // Handle mouse events for MainMenu
-            if matches!(menu.state, MenuState::MainMenu) {
-                match &ev {
-                    Event::Mouse(mouse_ev) => {
+            // Drain all available events
+            while event::poll(Duration::from_millis(0))? {
+                let ev = event::read()?;
+
+                // Handle mouse events for MainMenu
+                if matches!(menu.state, MenuState::MainMenu) {
+                    if let Event::Mouse(mouse_ev) = &ev {
                         match mouse_ev.kind {
                             MouseEventKind::Moved | MouseEventKind::Drag(_) => {
                                 // Mouse hover: focus nearest item
@@ -249,55 +253,48 @@ async fn main() -> Result<()> {
                         }
                         continue;
                     }
-                    _ => {}
                 }
-            }
 
-            if let Event::Key(key) = ev {
-                if key.kind != KeyEventKind::Press { continue; }
+                if let Event::Key(key) = ev {
+                    if key.kind != KeyEventKind::Press { continue; }
 
-                match menu.state {
-                    MenuState::MainMenu => {
-                        match key.code {
-                            // Arrow keys control snake direction (4 cardinal)
-                            KeyCode::Up    => { menu.mouse_focus_active = false; menu.snake.set_direction(0); }
-                            KeyCode::Right => { menu.mouse_focus_active = false; menu.snake.set_direction(2); }
-                            KeyCode::Down  => { menu.mouse_focus_active = false; menu.snake.set_direction(4); }
-                            KeyCode::Left  => { menu.mouse_focus_active = false; menu.snake.set_direction(6); }
-                            // WASD
-                            KeyCode::Char('w') | KeyCode::Char('W') => { menu.mouse_focus_active = false; menu.snake.set_direction(0); }
-                            KeyCode::Char('d') | KeyCode::Char('D') => { menu.mouse_focus_active = false; menu.snake.set_direction(2); }
-                            KeyCode::Char('s') | KeyCode::Char('S') => { menu.mouse_focus_active = false; menu.snake.set_direction(4); }
-                            KeyCode::Char('a') | KeyCode::Char('A') => { menu.mouse_focus_active = false; menu.snake.set_direction(6); }
-                            // Diagonal shortcuts: Q=NW, E=NE, Z=SW, C=SE
-                            KeyCode::Char('q') | KeyCode::Char('Q') => { menu.mouse_focus_active = false; menu.snake.set_direction(7); }
-                            KeyCode::Char('e') | KeyCode::Char('E') => { menu.mouse_focus_active = false; menu.snake.set_direction(1); }
-                            KeyCode::Char('z') | KeyCode::Char('Z') => { menu.mouse_focus_active = false; menu.snake.set_direction(5); }
-                            KeyCode::Char('c') | KeyCode::Char('C') => { menu.mouse_focus_active = false; menu.snake.set_direction(3); }
-                            // Dash select (Enter or F)
-                            KeyCode::Enter | KeyCode::Char('f') | KeyCode::Char('F') => {
-                                menu.trigger_dash();
-                            }
-                            KeyCode::Esc => { break 'app_loop; }
-                            _ => {}
-                        }
-                    }
-                    MenuState::CredentialsInput => {
-                        match key.code {
-                            KeyCode::Enter => {
-                                if menu.cred_stage == 0 {
-                                    // Validate Key
-                                    if stellar::validate_secret_key(&menu.secret_key).is_some() {
-                                        menu.cred_stage = 1; // Next: Nickname
-                                        menu.error_msg = None;
-                                    } else {
-                                        menu.error_msg = Some("INVALID KEY FORMAT".to_string());
-                                    }
-                                } else {
-                                    // Complete
-                                    menu.state = MenuState::MainMenu;
-                                    menu.reset_snake();
+                    match menu.state {
+                        MenuState::MainMenu => {
+                            match key.code {
+                                // Arrow keys & WASD (accumulate dx/dy to support diagonal chording)
+                                KeyCode::Up | KeyCode::Char('w') | KeyCode::Char('W') => { move_dy -= 1; }
+                                KeyCode::Down | KeyCode::Char('s') | KeyCode::Char('S') => { move_dy += 1; }
+                                KeyCode::Left | KeyCode::Char('a') | KeyCode::Char('A') => { move_dx -= 1; }
+                                KeyCode::Right | KeyCode::Char('d') | KeyCode::Char('D') => { move_dx += 1; }
+                                // Diagonal shortcuts
+                                KeyCode::Char('q') | KeyCode::Char('Q') => { move_dx -= 1; move_dy -= 1; }
+                                KeyCode::Char('e') | KeyCode::Char('E') => { move_dx += 1; move_dy -= 1; }
+                                KeyCode::Char('z') | KeyCode::Char('Z') => { move_dx -= 1; move_dy += 1; }
+                                KeyCode::Char('c') | KeyCode::Char('C') => { move_dx += 1; move_dy += 1; }
+                                // Dash select (Enter or F)
+                                KeyCode::Enter | KeyCode::Char('f') | KeyCode::Char('F') => {
+                                    menu.trigger_dash();
                                 }
+                                KeyCode::Esc => { break 'app_loop; }
+                                _ => {}
+                            }
+                        }
+                        MenuState::CredentialsInput => {
+                            match key.code {
+                                KeyCode::Enter => {
+                                    if menu.cred_stage == 0 {
+                                        // Validate Key
+                                        if stellar::validate_secret_key(&menu.secret_key).is_some() {
+                                            menu.cred_stage = 1; // Next: Nickname
+                                            menu.error_msg = None;
+                                        } else {
+                                            menu.error_msg = Some("INVALID KEY FORMAT".to_string());
+                                        }
+                                    } else {
+                                        // Complete
+                                        menu.state = MenuState::MainMenu;
+                                        menu.reset_snake();
+                                    }
                             }
                             KeyCode::Backspace => {
                                 if menu.cred_stage == 0 { menu.secret_key.pop(); }
@@ -388,6 +385,28 @@ async fn main() -> Result<()> {
                             _ => {}
                         }
                     }
+                }
+            } // closes if let Event::Key
+        } // end while (draining events)
+
+            // Apply accumulated direction input for MainMenu
+            if matches!(menu.state, MenuState::MainMenu) {
+                let dx = move_dx.signum();
+                let dy = move_dy.signum();
+                if dx != 0 || dy != 0 {
+                    let dir = match (dx, dy) {
+                        (0, -1) => 0,  // N
+                        (1, -1) => 1,  // NE
+                        (1, 0) => 2,   // E
+                        (1, 1) => 3,   // SE
+                        (0, 1) => 4,   // S
+                        (-1, 1) => 5,  // SW
+                        (-1, 0) => 6,  // W
+                        (-1, -1) => 7, // NW
+                        _ => 0,
+                    };
+                    menu.mouse_focus_active = false;
+                    menu.snake.set_direction(dir);
                 }
             }
         }
