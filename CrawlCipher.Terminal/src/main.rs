@@ -178,7 +178,7 @@ async fn main() -> Result<()> {
     // MAIN MENU LOOP
     'menu_loop: loop {
         // Tick the menu snake simulation for any snake-based menu
-        if matches!(menu.state, MenuState::MainMenu | MenuState::BlockchainMenu | MenuState::SettingsHelpMenu | MenuState::BackgroundsMenu) {
+        if matches!(menu.state, MenuState::MainMenu | MenuState::BlockchainMenu | MenuState::SettingsHelpMenu | MenuState::BackgroundsMenu | MenuState::MissionSelect) {
             menu.tick();
 
             // Check if a dash action completed
@@ -194,6 +194,8 @@ async fn main() -> Result<()> {
                         menu.nickname = "GHOST".to_string();
                         menu.state = MenuState::MissionSelect;
                         menu.mission_selection = 0;
+                        menu.update_items_for_state();
+                        menu.reset_snake();
                     }
                     MenuAction::MenuLanP2PPlay => {
                         // Coming Soon (do nothing or show a message later)
@@ -209,13 +211,18 @@ async fn main() -> Result<()> {
                     MenuAction::BlockchainStart => {
                         if !menu.secret_key.is_empty() {
                             menu.state = MenuState::MissionSelect;
-                            menu.mission_selection = 0;
+                            menu.update_items_for_state();
+                            menu.reset_snake();
                         } else {
                             menu.state = MenuState::CredentialsInput;
                             menu.cred_stage = 0;
                             menu.error_msg = None;
                         }
                     }
+                    MenuAction::StartExpedition => { menu.mission_selection = 0; break 'menu_loop; }
+                    MenuAction::StartPuzzle1 => { menu.mission_selection = 1; break 'menu_loop; }
+                    MenuAction::StartPuzzle2 => { menu.mission_selection = 2; break 'menu_loop; }
+                    MenuAction::StartPuzzle3 => { menu.mission_selection = 3; break 'menu_loop; }
                     MenuAction::BlockchainManageCreds => {
                         menu.state = MenuState::CredentialsInput;
                         menu.cred_stage = 0;
@@ -240,7 +247,7 @@ async fn main() -> Result<()> {
         }
 
         // Update layout info for mouse mapping
-        if matches!(menu.state, MenuState::MainMenu | MenuState::BlockchainMenu | MenuState::SettingsHelpMenu | MenuState::BackgroundsMenu) {
+        if matches!(menu.state, MenuState::MainMenu | MenuState::BlockchainMenu | MenuState::SettingsHelpMenu | MenuState::BackgroundsMenu | MenuState::MissionSelect) {
             let term_size = terminal.size()?;
             menu.update_layout(term_size.width, term_size.height);
         }
@@ -253,7 +260,7 @@ async fn main() -> Result<()> {
                 let ev = event::read()?;
 
                 // Handle mouse events for MainMenu
-                if matches!(menu.state, MenuState::MainMenu | MenuState::BlockchainMenu | MenuState::SettingsHelpMenu | MenuState::BackgroundsMenu) {
+                if matches!(menu.state, MenuState::MainMenu | MenuState::BlockchainMenu | MenuState::SettingsHelpMenu | MenuState::BackgroundsMenu | MenuState::MissionSelect) {
                     if let Event::Mouse(mouse_ev) = &ev {
                         match mouse_ev.kind {
                             MouseEventKind::Moved | MouseEventKind::Drag(_) => {
@@ -279,7 +286,8 @@ async fn main() -> Result<()> {
                         MenuState::MainMenu
                         | MenuState::BlockchainMenu
                         | MenuState::SettingsHelpMenu
-                        | MenuState::BackgroundsMenu => {
+                        | MenuState::BackgroundsMenu
+                        | MenuState::MissionSelect => {
                             match key.code {
                                 // Arrow keys & WASD (accumulate dx/dy to support diagonal chording)
                                 KeyCode::Up | KeyCode::Char('w') | KeyCode::Char('W') => menu_input_handler.handle_key_direction(0, -1),
@@ -329,18 +337,12 @@ async fn main() -> Result<()> {
                                 if menu.cred_stage == 0 { menu.secret_key.pop(); }
                                 else { menu.nickname.pop(); }
                             }
+                            KeyCode::Tab => {
+                                let _ = webbrowser::open("https://laboratory.stellar.org/#account-creator?network=test");
+                            }
                             KeyCode::Char(c) => {
                                 if menu.cred_stage == 0 { menu.secret_key.push(c); }
                                 else { menu.nickname.push(c); }
-                            }
-                            KeyCode::Esc => { menu.state = MenuState::BlockchainMenu; menu.update_items_for_state(); menu.reset_snake(); }
-                            _ => {}
-                        }
-                    }
-                    MenuState::KeyInfo => {
-                        match key.code {
-                            KeyCode::Enter => {
-                                let _ = webbrowser::open("https://laboratory.stellar.org/#account-creator?network=test");
                             }
                             KeyCode::Esc => { menu.state = MenuState::BlockchainMenu; menu.update_items_for_state(); menu.reset_snake(); }
                             _ => {}
@@ -378,17 +380,7 @@ async fn main() -> Result<()> {
                             menu.reset_snake();
                         }
                     }
-                    MenuState::MissionSelect => {
-                        match key.code {
-                            KeyCode::Up => { if menu.mission_selection > 0 { menu.mission_selection -= 1; } }
-                            KeyCode::Down => { if menu.mission_selection < 3 { menu.mission_selection += 1; } }
-                            KeyCode::Enter => {
-                                break 'menu_loop; // Break out of menu loop to start the mission
-                            }
-                            KeyCode::Esc => { menu.state = MenuState::MainMenu; menu.reset_snake(); }
-                            _ => {}
-                        }
-                    }
+
                 }
             } // closes if let Event::Key
         } // end while (draining events)

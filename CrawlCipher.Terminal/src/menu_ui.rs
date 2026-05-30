@@ -24,6 +24,12 @@ pub enum MenuAction {
     BlockchainStart,
     BlockchainManageCreds,
 
+    // Mission Select Actions
+    StartExpedition,
+    StartPuzzle1,
+    StartPuzzle2,
+    StartPuzzle3,
+
     // Settings/Help Menu
     SettingsBackgrounds,
     SettingsHelpManual,
@@ -286,7 +292,6 @@ pub enum MenuState {
 
     // Classic dialogs
     CredentialsInput,
-    KeyInfo,
     CustomBackgroundInput,
     MissionSelect,
     HelpManual,
@@ -405,6 +410,15 @@ impl MenuUI {
             }
             MenuState::BackgroundsMenu => {
                 self.menu_items = vec![
+                    MenuItem { label: "[ BACK ]".to_string(), x: 0.50, y: 0.85, action: MenuAction::BackToMainMenu, is_focused: false },
+                ];
+            }
+            MenuState::MissionSelect => {
+                self.menu_items = vec![
+                    MenuItem { label: "[ EXPEDITION ]".to_string(), x: 0.50, y: 0.25, action: MenuAction::StartExpedition, is_focused: false },
+                    MenuItem { label: "[ PUZZLE: THE NARROW PATH ]".to_string(), x: 0.50, y: 0.40, action: MenuAction::StartPuzzle1, is_focused: false },
+                    MenuItem { label: "[ PUZZLE: LASER GATE ]".to_string(), x: 0.50, y: 0.55, action: MenuAction::StartPuzzle2, is_focused: false },
+                    MenuItem { label: "[ PUZZLE: PRISM CHAMBER ]".to_string(), x: 0.50, y: 0.70, action: MenuAction::StartPuzzle3, is_focused: false },
                     MenuItem { label: "[ BACK ]".to_string(), x: 0.50, y: 0.85, action: MenuAction::BackToMainMenu, is_focused: false },
                 ];
             }
@@ -645,23 +659,16 @@ pub fn render_menu(frame: &mut Frame, area: Rect, ui: &MenuUI) {
         MenuState::MainMenu
         | MenuState::BlockchainMenu
         | MenuState::SettingsHelpMenu
-        | MenuState::BackgroundsMenu => render_snake_menu(frame, area, ui),
+        | MenuState::BackgroundsMenu
+        | MenuState::MissionSelect => render_snake_menu(frame, area, ui),
         
         MenuState::CredentialsInput => {
             render_classic_bg(frame, area);
             render_credentials_input(frame, area, ui);
         }
-        MenuState::KeyInfo => {
-            render_classic_bg(frame, area);
-            render_key_info(frame, area);
-        }
         MenuState::CustomBackgroundInput => {
             render_classic_bg(frame, area);
             render_custom_bg_input(frame, area, ui);
-        }
-        MenuState::MissionSelect => {
-            render_classic_bg(frame, area);
-            render_mission_select(frame, area, ui);
         }
         MenuState::HelpManual => {
             render_classic_bg(frame, area);
@@ -954,6 +961,7 @@ fn render_credentials_input(frame: &mut Frame, area: Rect, ui: &MenuUI) {
         .constraints([
             Constraint::Length(3), // Secret Key
             Constraint::Length(3), // Nickname
+            Constraint::Length(4), // Key info
             Constraint::Length(3), // Controls info
             Constraint::Min(1),    // Error
         ])
@@ -982,38 +990,28 @@ fn render_credentials_input(frame: &mut Frame, area: Rect, ui: &MenuUI) {
     let nick_block = Block::default().borders(Borders::ALL).title(" CODENAME ");
     frame.render_widget(Paragraph::new(ui.nickname.as_str()).block(nick_block).style(nick_style), chunks[1]);
 
+    // Key info
+    let key_info_lines = vec![
+        Line::from("To generate a Stellar Testnet Keypair:"),
+        Line::from(Span::styled("https://laboratory.stellar.org/#account-creator?network=test", Style::default().fg(Color::Blue).add_modifier(Modifier::UNDERLINED))),
+        Line::from("[TAB] Open in browser"),
+    ];
+    let key_info_p = Paragraph::new(key_info_lines).alignment(Alignment::Center).style(Style::default().fg(Color::DarkGray));
+    frame.render_widget(key_info_p, chunks[2]);
+
     // Info
     let info = Paragraph::new("[ENTER] Confirm  [ESC] Cancel")
         .alignment(Alignment::Center)
         .style(Style::default().fg(Color::DarkGray));
-    frame.render_widget(info, chunks[2]);
+    frame.render_widget(info, chunks[3]);
 
     // Error
     if let Some(err) = &ui.error_msg {
         let err_text = Paragraph::new(format!("ERROR: {}", err))
             .style(Style::default().fg(Color::Red).add_modifier(Modifier::BOLD))
             .alignment(Alignment::Center);
-        frame.render_widget(err_text, chunks[3]);
+        frame.render_widget(err_text, chunks[4]);
     }
-}
-
-fn render_key_info(frame: &mut Frame, area: Rect) {
-    let area = centered_rect(70, 30, area);
-    let block = Block::default().borders(Borders::ALL).title(" ACQUIRE ACCESS KEY ").style(Style::default().fg(Color::Cyan));
-    let inner = block.inner(area);
-    frame.render_widget(block, area);
-
-    let lines = vec![
-        Line::from("To generate a Stellar Testnet Keypair:"),
-        Line::from(""),
-        Line::from(Span::styled("https://laboratory.stellar.org/#account-creator?network=test", Style::default().fg(Color::Blue).add_modifier(Modifier::UNDERLINED))),
-        Line::from(""),
-        Line::from("Press [ENTER] to open in browser."),
-        Line::from("Press [ESC] to return."),
-    ];
-
-    let p = Paragraph::new(lines).alignment(Alignment::Center).block(Block::default().borders(Borders::NONE));
-    frame.render_widget(p, inner);
 }
 
 fn render_settings(frame: &mut Frame, area: Rect, ui: &MenuUI) {
@@ -1106,51 +1104,7 @@ fn render_custom_bg_input(frame: &mut Frame, area: Rect, ui: &MenuUI) {
     }
 }
 
-fn render_mission_select(frame: &mut Frame, area: Rect, ui: &MenuUI) {
-    let area = centered_rect(60, 60, area);
-    let block = Block::default().borders(Borders::ALL).title(" SELECT MISSION ");
-    let inner = block.inner(area);
-    frame.render_widget(block, area);
 
-    let chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(3), // Header
-            Constraint::Min(5),    // List
-            Constraint::Length(3), // Footer
-        ])
-        .split(inner);
-
-    let header = Paragraph::new("Choose Operation Mode:")
-        .alignment(Alignment::Center)
-        .style(Style::default().fg(Color::Cyan));
-    frame.render_widget(header, chunks[0]);
-
-    let options = vec![
-        " [ EXPEDITION ] (Sandbox Survival) ",
-        " [ PUZZLE: THE NARROW PATH ] ",
-        " [ PUZZLE: LASER GATE ] ",
-        " [ PUZZLE: PRISM CHAMBER ] "
-    ];
-
-    let mut spans = Vec::new();
-    for (i, opt) in options.iter().enumerate() {
-        let is_selected = i == ui.mission_selection;
-        let style = if is_selected {
-            Style::default().fg(Color::Black).bg(Color::Yellow)
-        } else {
-            Style::default().fg(Color::Gray)
-        };
-        spans.push(Line::from(Span::styled(*opt, style)));
-    }
-
-    frame.render_widget(Paragraph::new(spans).alignment(Alignment::Center), chunks[1]);
-
-    let footer = Paragraph::new("[ENTER] Start Mission  [ESC] Back")
-        .alignment(Alignment::Center)
-        .style(Style::default().fg(Color::DarkGray));
-    frame.render_widget(footer, chunks[2]);
-}
 
 fn render_manual(frame: &mut Frame, area: Rect) {
     let area = centered_rect(70, 80, area);
