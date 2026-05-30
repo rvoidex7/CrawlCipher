@@ -405,11 +405,16 @@ impl MenuUI {
 
     pub fn reload_background(&mut self) {
         let mut bg = background::BackgroundPattern::new();
+        bg.set_seed(12345); // Default seed for menu preview
         if self.custom_bg_loaded {
             let _ = bg.load_from_file(&self.custom_bg_path);
         } else if self.selected_bg_index < self.embedded_bgs.len() {
             let filename = &self.embedded_bgs[self.selected_bg_index];
-            bg.load_from_embedded(filename);
+            if filename == "PROCEDURAL_CRYPTO" {
+                bg.enable_procedural();
+            } else {
+                bg.load_from_embedded(filename);
+            }
         }
         self.bg_pattern = bg;
     }
