@@ -33,19 +33,23 @@ impl InputHandler {
     /// Resolves the accumulated input into a single direction command and sends it.
     /// Call this ONCE per simulation tick before update.
     pub fn resolve_and_send(&mut self, simulation: &NativeEngine) {
+        if let Some(dir) = self.resolve_direction() {
+            simulation.process_input(0, dir, 0);
+        }
+    }
+
+    /// Resolves accumulated input without sending it to NativeEngine.
+    /// Useful for UI/Menu navigation that needs the same diagonal chording logic.
+    pub fn resolve_direction(&mut self) -> Option<i32> {
         if self.current_dx == 0 && self.current_dy == 0 {
-            return;
+            return None;
         }
 
-        // Clamp to ensure valid range (-1 to 1)
         let dx = self.current_dx.clamp(-1, 1);
         let dy = self.current_dy.clamp(-1, 1);
 
-        if let Some(dir) = ffi::direction_from_delta(dx, dy) {
-            simulation.process_input(0, dir, 0);
-        }
-        
-        // Reset after sending
+        let dir = ffi::direction_from_delta(dx, dy);
         self.reset();
+        dir
     }
 }

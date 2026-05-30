@@ -165,6 +165,8 @@ async fn main() -> Result<()> {
     let _ = splash_screen_1::run(&mut terminal);
 
     let mut menu = MenuUI::new();
+    let mut menu_input_handler = input::InputHandler::new();
+    let mut menu_input_timer = std::time::Instant::now();
 
     // OUTER APP LOOP
     'app_loop: loop {
@@ -174,7 +176,7 @@ async fn main() -> Result<()> {
     menu.reset_snake();
 
     // MAIN MENU LOOP
-    loop {
+    'menu_loop: loop {
         // Tick the menu snake simulation
         if matches!(menu.state, MenuState::MainMenu) {
             menu.tick();
@@ -228,9 +230,6 @@ async fn main() -> Result<()> {
         terminal.draw(|f| render_menu(f, f.size(), &menu))?;
 
         if event::poll(Duration::from_millis(16))? { // ~60fps for smooth snake animation
-            let mut move_dx: i32 = 0;
-            let mut move_dy: i32 = 0;
-
             // Drain all available events
             while event::poll(Duration::from_millis(0))? {
                 let ev = event::read()?;
@@ -262,15 +261,15 @@ async fn main() -> Result<()> {
                         MenuState::MainMenu => {
                             match key.code {
                                 // Arrow keys & WASD (accumulate dx/dy to support diagonal chording)
-                                KeyCode::Up | KeyCode::Char('w') | KeyCode::Char('W') => { move_dy -= 1; }
-                                KeyCode::Down | KeyCode::Char('s') | KeyCode::Char('S') => { move_dy += 1; }
-                                KeyCode::Left | KeyCode::Char('a') | KeyCode::Char('A') => { move_dx -= 1; }
-                                KeyCode::Right | KeyCode::Char('d') | KeyCode::Char('D') => { move_dx += 1; }
+                                KeyCode::Up | KeyCode::Char('w') | KeyCode::Char('W') => menu_input_handler.handle_key_direction(0, -1),
+                                KeyCode::Down | KeyCode::Char('s') | KeyCode::Char('S') => menu_input_handler.handle_key_direction(0, 1),
+                                KeyCode::Left | KeyCode::Char('a') | KeyCode::Char('A') => menu_input_handler.handle_key_direction(-1, 0),
+                                KeyCode::Right | KeyCode::Char('d') | KeyCode::Char('D') => menu_input_handler.handle_key_direction(1, 0),
                                 // Diagonal shortcuts
-                                KeyCode::Char('q') | KeyCode::Char('Q') => { move_dx -= 1; move_dy -= 1; }
-                                KeyCode::Char('e') | KeyCode::Char('E') => { move_dx += 1; move_dy -= 1; }
-                                KeyCode::Char('z') | KeyCode::Char('Z') => { move_dx -= 1; move_dy += 1; }
-                                KeyCode::Char('c') | KeyCode::Char('C') => { move_dx += 1; move_dy += 1; }
+                                KeyCode::Char('q') | KeyCode::Char('Q') => menu_input_handler.handle_key_direction(-1, -1),
+                                KeyCode::Char('e') | KeyCode::Char('E') => menu_input_handler.handle_key_direction(1, -1),
+                                KeyCode::Char('z') | KeyCode::Char('Z') => menu_input_handler.handle_key_direction(-1, 1),
+                                KeyCode::Char('c') | KeyCode::Char('C') => menu_input_handler.handle_key_direction(1, 1),
                                 // Dash select (Enter or F)
                                 KeyCode::Enter | KeyCode::Char('f') | KeyCode::Char('F') => {
                                     menu.trigger_dash();
@@ -379,7 +378,7 @@ async fn main() -> Result<()> {
                             KeyCode::Up => { if menu.mission_selection > 0 { menu.mission_selection -= 1; } }
                             KeyCode::Down => { if menu.mission_selection < 3 { menu.mission_selection += 1; } }
                             KeyCode::Enter => {
-                                break; // Break out of menu loop to start the mission
+                                break 'menu_loop; // Break out of menu loop to start the mission
                             }
                             KeyCode::Esc => { menu.state = MenuState::MainMenu; menu.reset_snake(); }
                             _ => {}
@@ -389,25 +388,14 @@ async fn main() -> Result<()> {
             } // closes if let Event::Key
         } // end while (draining events)
 
-            // Apply accumulated direction input for MainMenu
-            if matches!(menu.state, MenuState::MainMenu) {
-                let dx = move_dx.signum();
-                let dy = move_dy.signum();
-                if dx != 0 || dy != 0 {
-                    let dir = match (dx, dy) {
-                        (0, -1) => 0,  // N
-                        (1, -1) => 1,  // NE
-                        (1, 0) => 2,   // E
-                        (1, 1) => 3,   // SE
-                        (0, 1) => 4,   // S
-                        (-1, 1) => 5,  // SW
-                        (-1, 0) => 6,  // W
-                        (-1, -1) => 7, // NW
-                        _ => 0,
-                    };
+            // Resolve the accumulated direction for MainMenu every 50ms window
+            // This provides a "chording" window for the user to press e.g., Up+Right together
+            if matches!(menu.state, MenuState::MainMenu) && menu_input_timer.elapsed() >= Duration::from_millis(50) {
+                if let Some(dir) = menu_input_handler.resolve_direction() {
                     menu.mouse_focus_active = false;
                     menu.snake.set_direction(dir);
                 }
+                menu_input_timer = std::time::Instant::now();
             }
         }
     }
