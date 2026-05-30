@@ -570,13 +570,19 @@ impl MenuUI {
 
     /// Update layout info for mouse coordinate mapping. Call with terminal size each frame.
     pub fn update_layout(&mut self, area_width: u16, area_height: u16) {
-        let title_h: u16 = 4;
         let status_h: u16 = 2;
 
         let ga_x: u16 = 0;
-        let ga_y: u16 = title_h;
+        let ga_y: u16 = 0; // Removed title height
         let ga_w: u16 = area_width;
-        let ga_h: u16 = area_height.saturating_sub(title_h + status_h);
+        let ga_h: u16 = area_height.saturating_sub(status_h);
+
+        // Dynamically update virtual grid dimensions to match the actual terminal area!
+        // This makes menu item positions (which use percentages) responsive to window resizing.
+        let dynamic_w = (ga_w / 2).max(10) as f64; // Minimum 10 grid width
+        let dynamic_h = ga_h.max(10) as f64;
+        self.grid_width = dynamic_w;
+        self.grid_height = dynamic_h;
 
         let grid_w = self.grid_width as i32;
         let grid_h = self.grid_height as i32;
@@ -650,15 +656,14 @@ fn render_snake_menu(frame: &mut Frame, area: Rect, ui: &MenuUI) {
     let grid_h = ui.grid_height as i32;
 
     // Map grid to terminal area (2 chars per grid cell horizontally, 1 char vertically)
-    // Leave space for title (3 lines top) and status (2 lines bottom)
-    let title_h: u16 = 4;
+    // Leave space for status (2 lines bottom), no title at top
     let status_h: u16 = 2;
 
     let game_area = Rect {
         x: area.x,
-        y: area.y + title_h,
+        y: area.y,
         width: area.width,
-        height: area.height.saturating_sub(title_h + status_h),
+        height: area.height.saturating_sub(status_h),
     };
 
     // Calculate visible grid range based on terminal size
@@ -845,14 +850,6 @@ fn render_snake_menu(frame: &mut Frame, area: Rect, ui: &MenuUI) {
         }
     }
 
-    // 6. Render title at top
-    render_snake_menu_title(frame, Rect {
-        x: area.x,
-        y: area.y,
-        width: area.width,
-        height: title_h,
-    });
-
     // 7. Render status bar at bottom
     render_snake_menu_status(frame, Rect {
         x: area.x,
@@ -860,29 +857,6 @@ fn render_snake_menu(frame: &mut Frame, area: Rect, ui: &MenuUI) {
         width: area.width,
         height: status_h,
     }, ui);
-}
-
-fn render_snake_menu_title(frame: &mut Frame, area: Rect) {
-    // ASCII art title
-    let title_lines = vec![
-        Line::from(Span::styled(
-            "╔═══════════════════════════════════════╗",
-            Style::default().fg(Color::Cyan)
-        )),
-        Line::from(Span::styled(
-            "║  C R A W L   C I P H E R  //  v0.1   ║",
-            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
-        )),
-        Line::from(Span::styled(
-            "╚═══════════════════════════════════════╝",
-            Style::default().fg(Color::Cyan)
-        )),
-    ];
-
-    let paragraph = Paragraph::new(title_lines)
-        .alignment(Alignment::Center)
-        .style(Style::default().bg(Color::Black));
-    frame.render_widget(paragraph, area);
 }
 
 fn render_snake_menu_status(frame: &mut Frame, area: Rect, ui: &MenuUI) {
