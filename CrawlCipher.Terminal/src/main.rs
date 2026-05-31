@@ -241,7 +241,21 @@ async fn main() -> Result<()> {
                         menu.update_items_for_state();
                         menu.reset_snake();
                     }
-                    _ => {}
+                    MenuAction::BackgroundSelect(idx) => {
+                        menu.selected_bg_index = idx;
+                        menu.custom_bg_loaded = false;
+                        menu.reload_background();
+                    }
+                    MenuAction::BackgroundCustom => {
+                        menu.state = MenuState::CustomBackgroundInput;
+                        menu.error_msg = None;
+                        menu.custom_bg_path.clear();
+                    }
+                    MenuAction::BackToSettings => {
+                        menu.state = MenuState::SettingsHelpMenu;
+                        menu.update_items_for_state();
+                        menu.reset_snake();
+                    }
                 }
             }
         }

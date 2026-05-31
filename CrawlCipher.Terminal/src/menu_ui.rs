@@ -34,8 +34,13 @@ pub enum MenuAction {
     SettingsBackgrounds,
     SettingsHelpManual,
 
+    // Backgrounds Menu
+    BackgroundCustom,
+    BackgroundSelect(usize),
+    
     // Navigation
     BackToMainMenu,
+    BackToSettings,
 }
 
 // ===== Menu Item =====
@@ -47,6 +52,7 @@ pub struct MenuItem {
     pub y: f64,       // Grid position (percentage of grid height, 0.0-1.0)
     pub action: MenuAction,
     pub is_focused: bool,
+    pub preview_bg: Option<String>,
 }
 
 // ===== Menu Snake =====
@@ -313,6 +319,7 @@ pub struct MenuUI {
     pub mission_selection: usize,
 
     pub bg_pattern: background::BackgroundPattern,
+    pub bg_previews: std::collections::HashMap<String, background::BackgroundPattern>,
 
     // New: Snake menu system
     pub snake: MenuSnake,
@@ -344,19 +351,34 @@ impl MenuUI {
 
         let menu_items = vec![];
 
+        let embedded_bgs = background::list_embedded_backgrounds();
+        
+        let mut bg_previews = std::collections::HashMap::new();
+        for bg_name in &embedded_bgs {
+            let mut pat = background::BackgroundPattern::new();
+            pat.set_seed(12345);
+            if bg_name == "PROCEDURAL_CRYPTO" {
+                pat.enable_procedural();
+            } else {
+                pat.load_from_embedded(bg_name);
+            }
+            bg_previews.insert(bg_name.clone(), pat);
+        }
+
         let mut ui = Self {
             secret_key: String::new(),
             nickname: "Pilot".to_string(),
             state: MenuState::MainMenu,
             cred_stage: 0,
             settings_selection: 0,
-            embedded_bgs: background::list_embedded_backgrounds(),
+            embedded_bgs,
             selected_bg_index: 0,
             error_msg: None,
             custom_bg_path: String::new(),
             custom_bg_loaded: false,
             mission_selection: 0,
             bg_pattern: background::BackgroundPattern::new(),
+            bg_previews,
 
             snake,
             menu_items,
@@ -387,39 +409,78 @@ impl MenuUI {
         match self.state {
             MenuState::MainMenu => {
                 self.menu_items = vec![
-                    MenuItem { label: "[ BLOCKCHAIN PLAY ]".to_string(), x: 0.50, y: 0.22, action: MenuAction::MenuBlockchainPlay, is_focused: false },
-                    MenuItem { label: "[ OFFLINE PLAY ]".to_string(), x: 0.22, y: 0.45, action: MenuAction::MenuOfflinePlay, is_focused: false },
-                    MenuItem { label: "[ LAN / P2P PLAY ]".to_string(), x: 0.78, y: 0.45, action: MenuAction::MenuLanP2PPlay, is_focused: false },
-                    MenuItem { label: "[ SETTINGS / HELP ]".to_string(), x: 0.50, y: 0.65, action: MenuAction::MenuSettingsHelp, is_focused: false },
-                    MenuItem { label: "[ EXIT TERMINAL ]".to_string(), x: 0.50, y: 0.85, action: MenuAction::ExitTerminal, is_focused: false },
+                    MenuItem { label: "[ BLOCKCHAIN PLAY ]".to_string(), x: 0.50, y: 0.22, action: MenuAction::MenuBlockchainPlay, is_focused: false, preview_bg: None },
+                    MenuItem { label: "[ OFFLINE PLAY ]".to_string(), x: 0.22, y: 0.45, action: MenuAction::MenuOfflinePlay, is_focused: false, preview_bg: None },
+                    MenuItem { label: "[ LAN / P2P PLAY ]".to_string(), x: 0.78, y: 0.45, action: MenuAction::MenuLanP2PPlay, is_focused: false, preview_bg: None },
+                    MenuItem { label: "[ SETTINGS / HELP ]".to_string(), x: 0.50, y: 0.65, action: MenuAction::MenuSettingsHelp, is_focused: false, preview_bg: None },
+                    MenuItem { label: "[ EXIT TERMINAL ]".to_string(), x: 0.50, y: 0.85, action: MenuAction::ExitTerminal, is_focused: false, preview_bg: None },
                 ];
             }
             MenuState::BlockchainMenu => {
                 self.menu_items = vec![
-                    MenuItem { label: "[ START ]".to_string(), x: 0.50, y: 0.35, action: MenuAction::BlockchainStart, is_focused: false },
-                    MenuItem { label: "[ MANAGE CREDENTIALS ]".to_string(), x: 0.50, y: 0.55, action: MenuAction::BlockchainManageCreds, is_focused: false },
-                    MenuItem { label: "[ BACK ]".to_string(), x: 0.50, y: 0.75, action: MenuAction::BackToMainMenu, is_focused: false },
+                    MenuItem { label: "[ START ]".to_string(), x: 0.50, y: 0.35, action: MenuAction::BlockchainStart, is_focused: false, preview_bg: None },
+                    MenuItem { label: "[ MANAGE CREDENTIALS ]".to_string(), x: 0.50, y: 0.55, action: MenuAction::BlockchainManageCreds, is_focused: false, preview_bg: None },
+                    MenuItem { label: "[ BACK ]".to_string(), x: 0.50, y: 0.75, action: MenuAction::BackToMainMenu, is_focused: false, preview_bg: None },
                 ];
             }
             MenuState::SettingsHelpMenu => {
                 self.menu_items = vec![
-                    MenuItem { label: "[ BACKGROUNDS ]".to_string(), x: 0.50, y: 0.35, action: MenuAction::SettingsBackgrounds, is_focused: false },
-                    MenuItem { label: "[ HELP ]".to_string(), x: 0.50, y: 0.55, action: MenuAction::SettingsHelpManual, is_focused: false },
-                    MenuItem { label: "[ BACK ]".to_string(), x: 0.50, y: 0.75, action: MenuAction::BackToMainMenu, is_focused: false },
+                    MenuItem { label: "[ BACKGROUNDS ]".to_string(), x: 0.50, y: 0.35, action: MenuAction::SettingsBackgrounds, is_focused: false, preview_bg: None },
+                    MenuItem { label: "[ HELP ]".to_string(), x: 0.50, y: 0.55, action: MenuAction::SettingsHelpManual, is_focused: false, preview_bg: None },
+                    MenuItem { label: "[ BACK ]".to_string(), x: 0.50, y: 0.75, action: MenuAction::BackToMainMenu, is_focused: false, preview_bg: None },
                 ];
             }
             MenuState::BackgroundsMenu => {
-                self.menu_items = vec![
-                    MenuItem { label: "[ BACK ]".to_string(), x: 0.50, y: 0.85, action: MenuAction::BackToMainMenu, is_focused: false },
-                ];
+                let mut items = Vec::new();
+                let bgs = &self.embedded_bgs;
+                let cols = 3;
+                let rows = (bgs.len() as f64 / cols as f64).ceil() as usize;
+                
+                let start_y = 0.3;
+                let y_step = 0.25;
+                let start_x = 0.2;
+                let x_step = 0.3;
+
+                for (i, bg_name) in bgs.iter().enumerate() {
+                    let col = i % cols;
+                    let row = i / cols;
+                    
+                    items.push(MenuItem {
+                        label: format!(" [{}] ", bg_name),
+                        x: start_x + (col as f64 * x_step),
+                        y: start_y + (row as f64 * y_step),
+                        action: MenuAction::BackgroundSelect(i),
+                        is_focused: false,
+                        preview_bg: Some(bg_name.clone()),
+                    });
+                }
+                
+                let bottom_y = start_y + (rows as f64 * y_step);
+                items.push(MenuItem {
+                    label: "[ CUSTOM FILE ]".to_string(),
+                    x: 0.35, y: bottom_y,
+                    action: MenuAction::BackgroundCustom,
+                    is_focused: false,
+                    preview_bg: None,
+                });
+                
+                items.push(MenuItem {
+                    label: "[ BACK ]".to_string(),
+                    x: 0.65, y: bottom_y,
+                    action: MenuAction::BackToSettings,
+                    is_focused: false,
+                    preview_bg: None,
+                });
+                
+                self.menu_items = items;
             }
             MenuState::MissionSelect => {
                 self.menu_items = vec![
-                    MenuItem { label: "[ EXPEDITION ]".to_string(), x: 0.50, y: 0.25, action: MenuAction::StartExpedition, is_focused: false },
-                    MenuItem { label: "[ PUZZLE: THE NARROW PATH ]".to_string(), x: 0.50, y: 0.40, action: MenuAction::StartPuzzle1, is_focused: false },
-                    MenuItem { label: "[ PUZZLE: LASER GATE ]".to_string(), x: 0.50, y: 0.55, action: MenuAction::StartPuzzle2, is_focused: false },
-                    MenuItem { label: "[ PUZZLE: PRISM CHAMBER ]".to_string(), x: 0.50, y: 0.70, action: MenuAction::StartPuzzle3, is_focused: false },
-                    MenuItem { label: "[ BACK ]".to_string(), x: 0.50, y: 0.85, action: MenuAction::BackToMainMenu, is_focused: false },
+                    MenuItem { label: "[ EXPEDITION ]".to_string(), x: 0.50, y: 0.25, action: MenuAction::StartExpedition, is_focused: false, preview_bg: None },
+                    MenuItem { label: "[ PUZZLE: THE NARROW PATH ]".to_string(), x: 0.50, y: 0.40, action: MenuAction::StartPuzzle1, is_focused: false, preview_bg: None },
+                    MenuItem { label: "[ PUZZLE: LASER GATE ]".to_string(), x: 0.50, y: 0.55, action: MenuAction::StartPuzzle2, is_focused: false, preview_bg: None },
+                    MenuItem { label: "[ PUZZLE: PRISM CHAMBER ]".to_string(), x: 0.50, y: 0.70, action: MenuAction::StartPuzzle3, is_focused: false, preview_bg: None },
+                    MenuItem { label: "[ BACK ]".to_string(), x: 0.50, y: 0.85, action: MenuAction::BackToMainMenu, is_focused: false, preview_bg: None },
                 ];
             }
             _ => {}
@@ -550,17 +611,38 @@ impl MenuUI {
             let item_world_x = item.x * self.grid_width;
             let item_world_y = item.y * self.grid_height;
 
-            // Item label occupies a horizontal range
+            let mut match_dist = f64::MAX;
+
+            // Check if mouse is near the label
             let label_half_w = item.label.len() as f64 / 4.0; // In grid cells
             let dx = (grid_x as f64 - item_world_x).abs() - label_half_w;
             let dx = dx.max(0.0); // 0 if inside label width
             let dy = (grid_y as f64 - item_world_y).abs();
+            let label_dist = (dx * dx + dy * dy).sqrt();
 
-            let dist = (dx * dx + dy * dy).sqrt();
+            // Check if mouse is inside the preview box (if any)
+            let mut inside_box = false;
+            if item.preview_bg.is_some() {
+                let box_w = 16.0 / 2.0; // 8 grid cells wide
+                let box_h = 8.0;        // 8 grid cells high
+                // Box center is roughly at `item_world_y - box_h/2 - 1.0`
+                let box_center_y = item_world_y - (box_h / 2.0) - 1.0;
+                let box_dy = (grid_y as f64 - box_center_y).abs() - box_h / 2.0;
+                let box_dx = (grid_x as f64 - item_world_x).abs() - box_w / 2.0;
+                
+                if box_dx <= 0.0 && box_dy <= 0.0 {
+                    inside_box = true;
+                }
+            }
 
-            // Only match if reasonably close (within ~3 grid cells)
-            if dist < 3.0 && dist < best_dist {
-                best_dist = dist;
+            if inside_box {
+                match_dist = 0.0;
+            } else if label_dist < 3.0 {
+                match_dist = label_dist;
+            }
+
+            if match_dist < best_dist {
+                best_dist = match_dist;
                 best_index = Some(i);
             }
         }
@@ -781,6 +863,83 @@ fn render_snake_menu(frame: &mut Frame, area: Rect, ui: &MenuUI) {
         };
 
         let style = Style::default().fg(fg_color).bg(bg_color).add_modifier(mods);
+
+        // Draw background preview box if applicable
+        if let Some(bg_name) = &item.preview_bg {
+            if let Some(bg_pat) = ui.bg_previews.get(bg_name) {
+                let box_w = 16; // 16 chars wide (8 pairs)
+                let box_h = 8;  // 8 rows high
+                let box_start_y = screen_y.saturating_sub(box_h as u16 + 1);
+                let box_start_x = screen_x_start + (item.label.len() as i32 / 2) - (box_w / 2);
+
+                let border_style = if item.is_focused { Style::default().fg(Color::Yellow) } else { Style::default().fg(Color::DarkGray) };
+
+                // Animated scroll offset if focused
+                let mut scroll_offset = 0;
+                if item.is_focused {
+                    let t_ms = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as u64;
+                    // 8 rows per second = 1 row per 125ms
+                    scroll_offset = ((t_ms / 125) % 1000000) as i32; // Modulo to prevent i32 overflow
+                }
+
+                for by in 0..box_h {
+                    for bx in 0..(box_w/2) {
+                        let draw_x = box_start_x + (bx * 2);
+                        let draw_y = box_start_y + by as u16;
+                        if draw_x >= area.x as i32 && draw_x + 1 < (area.x + area.width) as i32 && draw_y >= game_area.y && draw_y < game_area.y + game_area.height {
+                            let px = item_world_x + bx;
+                            let py = item_world_y + by - scroll_offset;
+                            let c1 = bg_pat.get_char(px * 2, py);
+                            let c2 = bg_pat.get_char(px * 2 + 1, py);
+                            
+                            let fg = if bg_pat.is_procedural { Color::Rgb(0, 180, 0) } else { Color::Rgb(100, 100, 100) };
+                            buf.set_string(draw_x as u16, draw_y, &format!("{}{}", c1, c2), Style::default().fg(fg).bg(Color::Black));
+                        }
+                    }
+                }
+                
+                let left_x = box_start_x - 1;
+                let right_x = box_start_x + box_w;
+                let top_y = box_start_y.saturating_sub(1);
+                let bottom_y = box_start_y + (box_h as u16);
+
+                // Top and bottom
+                for bx in 0..box_w {
+                    let draw_x = box_start_x + bx;
+                    if draw_x >= area.x as i32 && draw_x < (area.x + area.width) as i32 {
+                        if top_y >= game_area.y {
+                            buf.set_string(draw_x as u16, top_y, "─", border_style);
+                        }
+                        if bottom_y < game_area.y + game_area.height {
+                            buf.set_string(draw_x as u16, bottom_y, "─", border_style);
+                        }
+                    }
+                }
+                
+                // Left and right
+                for by in 0..box_h {
+                    let draw_y = box_start_y + by as u16;
+                    if draw_y >= game_area.y && draw_y < game_area.y + game_area.height {
+                        if left_x >= area.x as i32 {
+                            buf.set_string(left_x as u16, draw_y, "│", border_style);
+                        }
+                        if right_x < (area.x + area.width) as i32 {
+                            buf.set_string(right_x as u16, draw_y, "│", border_style);
+                        }
+                    }
+                }
+                
+                // Corners
+                if top_y >= game_area.y {
+                    if left_x >= area.x as i32 { buf.set_string(left_x as u16, top_y, "┌", border_style); }
+                    if right_x < (area.x + area.width) as i32 { buf.set_string(right_x as u16, top_y, "┐", border_style); }
+                }
+                if bottom_y < game_area.y + game_area.height {
+                    if left_x >= area.x as i32 { buf.set_string(left_x as u16, bottom_y, "└", border_style); }
+                    if right_x < (area.x + area.width) as i32 { buf.set_string(right_x as u16, bottom_y, "┘", border_style); }
+                }
+            }
+        }
 
         // Draw the label character by character
         for (i, ch) in item.label.chars().enumerate() {
