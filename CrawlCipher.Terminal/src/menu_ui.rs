@@ -310,7 +310,6 @@ pub struct MenuUI {
     pub nickname: String,
     pub state: MenuState,
     pub cred_stage: usize,
-    pub settings_selection: usize,
     pub embedded_bgs: Vec<String>,
     pub selected_bg_index: usize,
     pub error_msg: Option<String>,
@@ -364,13 +363,15 @@ impl MenuUI {
             }
             bg_previews.insert(bg_name.clone(), pat);
         }
+        
+        let empty_pat = background::BackgroundPattern::new();
+        bg_previews.insert("NONE".to_string(), empty_pat);
 
         let mut ui = Self {
             secret_key: String::new(),
             nickname: "Pilot".to_string(),
             state: MenuState::MainMenu,
             cred_stage: 0,
-            settings_selection: 0,
             embedded_bgs,
             selected_bg_index: 0,
             error_msg: None,
@@ -433,25 +434,32 @@ impl MenuUI {
             MenuState::BackgroundsMenu => {
                 let mut items = Vec::new();
                 let bgs = &self.embedded_bgs;
-                let cols = 3;
-                let rows = (bgs.len() as f64 / cols as f64).ceil() as usize;
+                let total_bgs = bgs.len() + 1; // +1 for None (Classic Grid)
+                let cols = total_bgs; // Put them all in one row!
+                let rows = 1;
                 
-                let start_y = 0.3;
-                let y_step = 0.25;
+                let start_y = 0.35;
+                let y_step = 0.35;
+                
+                // For 4 items: 0.2, 0.4, 0.6, 0.8
+                let x_step = 0.6 / (cols.max(2) - 1) as f64; // Spreads from 0.2 to 0.8
                 let start_x = 0.2;
-                let x_step = 0.3;
 
-                for (i, bg_name) in bgs.iter().enumerate() {
+                for i in 0..total_bgs {
                     let col = i % cols;
                     let row = i / cols;
                     
+                    let is_none = i == bgs.len();
+                    let bg_name = if is_none { "NONE" } else { &bgs[i] };
+                    let label = if is_none { " [CLASSIC GRID] ".to_string() } else { format!(" [{}] ", bg_name) };
+                    
                     items.push(MenuItem {
-                        label: format!(" [{}] ", bg_name),
+                        label,
                         x: start_x + (col as f64 * x_step),
                         y: start_y + (row as f64 * y_step),
                         action: MenuAction::BackgroundSelect(i),
                         is_focused: false,
-                        preview_bg: Some(bg_name.clone()),
+                        preview_bg: Some(bg_name.to_string()),
                     });
                 }
                 
@@ -889,11 +897,17 @@ fn render_snake_menu(frame: &mut Frame, area: Rect, ui: &MenuUI) {
                         if draw_x >= area.x as i32 && draw_x + 1 < (area.x + area.width) as i32 && draw_y >= game_area.y && draw_y < game_area.y + game_area.height {
                             let px = item_world_x + bx;
                             let py = item_world_y + by - scroll_offset;
-                            let c1 = bg_pat.get_char(px * 2, py);
-                            let c2 = bg_pat.get_char(px * 2 + 1, py);
                             
-                            let fg = if bg_pat.is_procedural { Color::Rgb(0, 180, 0) } else { Color::Rgb(100, 100, 100) };
-                            buf.set_string(draw_x as u16, draw_y, &format!("{}{}", c1, c2), Style::default().fg(fg).bg(Color::Black));
+                            if bg_pat.width == 0 {
+                                let is_even = (px + py).rem_euclid(2) == 0;
+                                let bg_c = if is_even { Color::Rgb(20, 20, 40) } else { Color::Rgb(40, 40, 80) };
+                                buf.set_string(draw_x as u16, draw_y, "  ", Style::default().bg(bg_c));
+                            } else {
+                                let c1 = bg_pat.get_char(px * 2, py);
+                                let c2 = bg_pat.get_char(px * 2 + 1, py);
+                                let fg = if bg_pat.is_procedural { Color::Rgb(0, 180, 0) } else { Color::Rgb(100, 100, 100) };
+                                buf.set_string(draw_x as u16, draw_y, &format!("{}{}", c1, c2), Style::default().fg(fg).bg(Color::Black));
+                            }
                         }
                     }
                 }
@@ -1171,69 +1185,6 @@ fn render_credentials_input(frame: &mut Frame, area: Rect, ui: &MenuUI) {
             .alignment(Alignment::Center);
         frame.render_widget(err_text, chunks[4]);
     }
-}
-
-fn render_settings(frame: &mut Frame, area: Rect, ui: &MenuUI) {
-    let area = centered_rect(60, 60, area);
-    let block = Block::default().borders(Borders::ALL).title(" SYSTEM SETTINGS ");
-    let inner = block.inner(area);
-    frame.render_widget(block, area);
-
-    let chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(3), // Header
-            Constraint::Min(5),    // List
-            Constraint::Length(3), // Footer
-        ])
-        .split(inner);
-
-    let header = Paragraph::new("Select Background Pattern:")
-        .alignment(Alignment::Center)
-        .style(Style::default().fg(Color::Cyan));
-    frame.render_widget(header, chunks[0]);
-
-    // List BGs
-    let mut spans = Vec::new();
-
-    let count = ui.embedded_bgs.len() + 2;
-
-    for i in 0..count {
-        let name = if i < ui.embedded_bgs.len() {
-            ui.embedded_bgs[i].as_str()
-        } else if i == ui.embedded_bgs.len() {
-            "None (Classic)"
-        } else {
-            "Load Custom File..."
-        };
-
-        let is_selected = i == ui.settings_selection;
-        let is_active = if i < ui.embedded_bgs.len() + 1 {
-            !ui.custom_bg_loaded && i == ui.selected_bg_index
-        } else {
-            ui.custom_bg_loaded
-        };
-
-        let prefix = if is_active { ">> " } else { "   " };
-        let text = format!("{}{}", prefix, name);
-
-        let style = if is_selected {
-            Style::default().fg(Color::Black).bg(Color::Yellow)
-        } else if is_active {
-            Style::default().fg(Color::Green)
-        } else {
-            Style::default().fg(Color::Gray)
-        };
-
-        spans.push(Line::from(Span::styled(text, style)));
-    }
-
-    frame.render_widget(Paragraph::new(spans), chunks[1]);
-
-    let footer = Paragraph::new("[ENTER] Select  [ESC] Back")
-        .alignment(Alignment::Center)
-        .style(Style::default().fg(Color::DarkGray));
-    frame.render_widget(footer, chunks[2]);
 }
 
 fn render_custom_bg_input(frame: &mut Frame, area: Rect, ui: &MenuUI) {
