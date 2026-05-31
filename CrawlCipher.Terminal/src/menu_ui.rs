@@ -53,6 +53,8 @@ pub struct MenuItem {
     pub action: MenuAction,
     pub is_focused: bool,
     pub preview_bg: Option<String>,
+    pub is_left_aligned: bool,
+    pub group_max_len: usize,
 }
 
 // ===== Menu Snake =====
@@ -75,6 +77,7 @@ pub struct MenuSnake {
     pub is_approaching: bool,        // True when auto-navigating toward target
     pub user_steering: bool,         // True when user is actively pressing direction keys
     pub user_steer_cooldown: f64,    // Seconds remaining of user-steering override
+    pub force_idle_direction: Option<i32>,
 }
 
 impl MenuSnake {
@@ -101,6 +104,7 @@ impl MenuSnake {
             is_approaching: false,
             user_steering: false,
             user_steer_cooldown: 0.0,
+            force_idle_direction: None,
         }
     }
 
@@ -184,58 +188,108 @@ impl MenuSnake {
             }
         }
 
-        // Auto-approach: steer toward approach_target if not user-steering
-        if !self.user_steering {
-            if let Some(target) = self.approach_target {
+        // Auto-approach and movement
+        if !self.user_steering && self.force_idle_direction == Some(2) {
+            // SPECIAL TREADMILL LOGIC for List Menus
+            self.move_timer += dt;
+            if self.move_timer >= self.move_interval {
+                self.move_timer -= self.move_interval;
+
                 let head = self.body[0];
-                let dx = target.0 - head.0;
-                let dy = target.1 - head.1;
-                let dist = (dx * dx + dy * dy).sqrt();
+                let mut head_dy = 0.0;
+                let mut target_x = head.0;
+                
+                if let Some(target) = self.approach_target {
+                    target_x = target.0;
+                    if (head.1 - target.1).abs() >= 0.5 {
+                        head_dy = if head.1 < target.1 { 1.0 } else { -1.0 };
+                        // Look diagonally when sliding!
+                        self.direction = if head_dy > 0.0 { 3 /* SE */ } else { 1 /* NE */ };
+                    } else {
+                        // Look straight when aligned
+                        self.direction = 2; // East
+                    }
+                }
+                
+                // Normal East movement + Y drift
+                let intended_new_head_x = head.0 + 1.0;
+                let intended_new_head_y = head.1 + head_dy;
 
-                // Stop distance: close enough but not on top of the item
-                let stop_distance = 5.0;
+                // Shift body (move tail to head)
+                let last = self.body.len() - 1;
+                for i in (1..=last).rev() {
+                    self.body[i] = self.body[i - 1];
+                }
+                self.body[0] = (intended_new_head_x, intended_new_head_y);
 
-                if dist > stop_distance {
-                    self.is_approaching = true;
-                    // Calculate best direction toward target
-                    let angle = dy.atan2(dx);
-                    let best_dir = Self::angle_to_direction(angle);
+                // TREADMILL: Shift entire snake left by 1
+                for i in 0..self.body.len() {
+                    self.body[i].0 -= 1.0;
+                }
+                
+                // Force head X exactly to target X to prevent float drift
+                self.body[0].0 = target_x;
+            }
+        } else {
+            // CLASSIC LOGIC for Main Menu
+            if !self.user_steering {
+                if let Some(target) = self.approach_target {
+                    let head = self.body[0];
+                    let dx = target.0 - head.0;
+                    let dy = target.1 - head.1;
+                    let dist = (dx * dx + dy * dy).sqrt();
 
-                    // Prevent 180-degree reversal during approach too
-                    let diff = (best_dir - self.direction + 8) % 8;
-                    if diff != 4 {
-                        self.direction = best_dir;
+                    // Stop distance: close enough but not on top of the item
+                    let stop_distance = 5.0;
+
+                    if dist > stop_distance {
+                        self.is_approaching = true;
+                        // Calculate best direction toward target
+                        let angle = dy.atan2(dx);
+                        let best_dir = Self::angle_to_direction(angle);
+
+                        // Prevent 180-degree reversal during approach too
+                        let diff = (best_dir - self.direction + 8) % 8;
+                        if diff != 4 {
+                            self.direction = best_dir;
+                        }
+                    } else {
+                        self.is_approaching = false;
+                        if let Some(dir) = self.force_idle_direction {
+                            self.direction = dir;
+                        }
                     }
                 } else {
                     self.is_approaching = false;
-                    // Near item: just idle, stay still by not moving
-                    // But still update wave phase for visual life
+                }
+            }
+
+            // Normal movement
+            self.move_timer += dt;
+            if self.move_timer >= self.move_interval {
+                self.move_timer -= self.move_interval;
+
+                if !self.is_approaching && !self.user_steering {
+                    // Do not move body if we are fully idle in classic mode
+                    // except if we want to add an idle animation later
                     return;
                 }
-            } else {
-                self.is_approaching = false;
+
+                let (dx, dy) = Self::direction_delta(self.direction);
+                let new_head_x = self.body[0].0 + dx;
+                let new_head_y = self.body[0].1 + dy;
+
+                // Wrap around grid boundaries
+                let wrapped_x = ((new_head_x % grid_w) + grid_w) % grid_w;
+                let wrapped_y = ((new_head_y % grid_h) + grid_h) % grid_h;
+
+                // Shift body (move tail to head)
+                let last = self.body.len() - 1;
+                for i in (1..=last).rev() {
+                    self.body[i] = self.body[i - 1];
+                }
+                self.body[0] = (wrapped_x, wrapped_y);
             }
-        }
-
-        // Normal movement
-        self.move_timer += dt;
-        if self.move_timer >= self.move_interval {
-            self.move_timer -= self.move_interval;
-
-            let (dx, dy) = Self::direction_delta(self.direction);
-            let new_head_x = self.body[0].0 + dx;
-            let new_head_y = self.body[0].1 + dy;
-
-            // Wrap around grid boundaries
-            let wrapped_x = ((new_head_x % grid_w) + grid_w) % grid_w;
-            let wrapped_y = ((new_head_y % grid_h) + grid_h) % grid_h;
-
-            // Shift body (move tail to head)
-            let last = self.body.len() - 1;
-            for i in (1..=last).rev() {
-                self.body[i] = self.body[i - 1];
-            }
-            self.body[0] = (wrapped_x, wrapped_y);
         }
     }
 
@@ -410,26 +464,36 @@ impl MenuUI {
         match self.state {
             MenuState::MainMenu => {
                 self.menu_items = vec![
-                    MenuItem { label: "[ BLOCKCHAIN PLAY ]".to_string(), x: 0.50, y: 0.22, action: MenuAction::MenuBlockchainPlay, is_focused: false, preview_bg: None },
-                    MenuItem { label: "[ OFFLINE PLAY ]".to_string(), x: 0.22, y: 0.45, action: MenuAction::MenuOfflinePlay, is_focused: false, preview_bg: None },
-                    MenuItem { label: "[ LAN / P2P PLAY ]".to_string(), x: 0.78, y: 0.45, action: MenuAction::MenuLanP2PPlay, is_focused: false, preview_bg: None },
-                    MenuItem { label: "[ SETTINGS / HELP ]".to_string(), x: 0.50, y: 0.65, action: MenuAction::MenuSettingsHelp, is_focused: false, preview_bg: None },
-                    MenuItem { label: "[ EXIT TERMINAL ]".to_string(), x: 0.50, y: 0.85, action: MenuAction::ExitTerminal, is_focused: false, preview_bg: None },
+                    MenuItem { label: "[ BLOCKCHAIN PLAY ]".to_string(), x: 0.50, y: 0.22, action: MenuAction::MenuBlockchainPlay, is_focused: false, preview_bg: None, is_left_aligned: false, group_max_len: 0 },
+                    MenuItem { label: "[ OFFLINE PLAY ]".to_string(), x: 0.22, y: 0.45, action: MenuAction::MenuOfflinePlay, is_focused: false, preview_bg: None, is_left_aligned: false, group_max_len: 0 },
+                    MenuItem { label: "[ LAN / P2P PLAY ]".to_string(), x: 0.78, y: 0.45, action: MenuAction::MenuLanP2PPlay, is_focused: false, preview_bg: None, is_left_aligned: false, group_max_len: 0 },
+                    MenuItem { label: "[ SETTINGS / HELP ]".to_string(), x: 0.50, y: 0.65, action: MenuAction::MenuSettingsHelp, is_focused: false, preview_bg: None, is_left_aligned: false, group_max_len: 0 },
+                    MenuItem { label: "[ EXIT TERMINAL ]".to_string(), x: 0.50, y: 0.85, action: MenuAction::ExitTerminal, is_focused: false, preview_bg: None, is_left_aligned: false, group_max_len: 0 },
                 ];
             }
             MenuState::BlockchainMenu => {
-                self.menu_items = vec![
-                    MenuItem { label: "[ START ]".to_string(), x: 0.50, y: 0.35, action: MenuAction::BlockchainStart, is_focused: false, preview_bg: None },
-                    MenuItem { label: "[ MANAGE CREDENTIALS ]".to_string(), x: 0.50, y: 0.55, action: MenuAction::BlockchainManageCreds, is_focused: false, preview_bg: None },
-                    MenuItem { label: "[ BACK ]".to_string(), x: 0.50, y: 0.75, action: MenuAction::BackToMainMenu, is_focused: false, preview_bg: None },
+                let y_step = 0.15;
+                let start_y = 0.5 - y_step; // 3 items, center is index 1
+                let mut items = vec![
+                    MenuItem { label: "[ START ]".to_string(), x: 0.65, y: start_y, action: MenuAction::BlockchainStart, is_focused: false, preview_bg: None, is_left_aligned: true, group_max_len: 0 },
+                    MenuItem { label: "[ MANAGE CREDENTIALS ]".to_string(), x: 0.65, y: start_y + y_step, action: MenuAction::BlockchainManageCreds, is_focused: false, preview_bg: None, is_left_aligned: true, group_max_len: 0 },
+                    MenuItem { label: "[ BACK ]".to_string(), x: 0.65, y: start_y + 2.0 * y_step, action: MenuAction::BackToMainMenu, is_focused: false, preview_bg: None, is_left_aligned: true, group_max_len: 0 },
                 ];
+                let max_len = items.iter().map(|i| i.label.len()).max().unwrap_or(0);
+                for i in &mut items { i.group_max_len = max_len; }
+                self.menu_items = items;
             }
             MenuState::SettingsHelpMenu => {
-                self.menu_items = vec![
-                    MenuItem { label: "[ BACKGROUNDS ]".to_string(), x: 0.50, y: 0.35, action: MenuAction::SettingsBackgrounds, is_focused: false, preview_bg: None },
-                    MenuItem { label: "[ HELP ]".to_string(), x: 0.50, y: 0.55, action: MenuAction::SettingsHelpManual, is_focused: false, preview_bg: None },
-                    MenuItem { label: "[ BACK ]".to_string(), x: 0.50, y: 0.75, action: MenuAction::BackToMainMenu, is_focused: false, preview_bg: None },
+                let y_step = 0.15;
+                let start_y = 0.5 - y_step; // 3 items, center is index 1
+                let mut items = vec![
+                    MenuItem { label: "[ BACKGROUNDS ]".to_string(), x: 0.65, y: start_y, action: MenuAction::SettingsBackgrounds, is_focused: false, preview_bg: None, is_left_aligned: true, group_max_len: 0 },
+                    MenuItem { label: "[ HELP ]".to_string(), x: 0.65, y: start_y + y_step, action: MenuAction::SettingsHelpManual, is_focused: false, preview_bg: None, is_left_aligned: true, group_max_len: 0 },
+                    MenuItem { label: "[ BACK ]".to_string(), x: 0.65, y: start_y + 2.0 * y_step, action: MenuAction::BackToMainMenu, is_focused: false, preview_bg: None, is_left_aligned: true, group_max_len: 0 },
                 ];
+                let max_len = items.iter().map(|i| i.label.len()).max().unwrap_or(0);
+                for i in &mut items { i.group_max_len = max_len; }
+                self.menu_items = items;
             }
             MenuState::BackgroundsMenu => {
                 let mut items = Vec::new();
@@ -460,6 +524,7 @@ impl MenuUI {
                         action: MenuAction::BackgroundSelect(i),
                         is_focused: false,
                         preview_bg: Some(bg_name.to_string()),
+                        is_left_aligned: false, group_max_len: 0
                     });
                 }
                 
@@ -470,6 +535,7 @@ impl MenuUI {
                     action: MenuAction::BackgroundCustom,
                     is_focused: false,
                     preview_bg: None,
+                    is_left_aligned: false, group_max_len: 0
                 });
                 
                 items.push(MenuItem {
@@ -478,18 +544,24 @@ impl MenuUI {
                     action: MenuAction::BackToSettings,
                     is_focused: false,
                     preview_bg: None,
+                    is_left_aligned: false, group_max_len: 0
                 });
                 
                 self.menu_items = items;
             }
             MenuState::MissionSelect => {
-                self.menu_items = vec![
-                    MenuItem { label: "[ EXPEDITION ]".to_string(), x: 0.50, y: 0.25, action: MenuAction::StartExpedition, is_focused: false, preview_bg: None },
-                    MenuItem { label: "[ PUZZLE: THE NARROW PATH ]".to_string(), x: 0.50, y: 0.40, action: MenuAction::StartPuzzle1, is_focused: false, preview_bg: None },
-                    MenuItem { label: "[ PUZZLE: LASER GATE ]".to_string(), x: 0.50, y: 0.55, action: MenuAction::StartPuzzle2, is_focused: false, preview_bg: None },
-                    MenuItem { label: "[ PUZZLE: PRISM CHAMBER ]".to_string(), x: 0.50, y: 0.70, action: MenuAction::StartPuzzle3, is_focused: false, preview_bg: None },
-                    MenuItem { label: "[ BACK ]".to_string(), x: 0.50, y: 0.85, action: MenuAction::BackToMainMenu, is_focused: false, preview_bg: None },
+                let y_step = 0.15;
+                let start_y = 0.5 - 2.0 * y_step; // 5 items, center is index 2
+                let mut items = vec![
+                    MenuItem { label: "[ EXPEDITION ]".to_string(), x: 0.65, y: start_y, action: MenuAction::StartExpedition, is_focused: false, preview_bg: None, is_left_aligned: true, group_max_len: 0 },
+                    MenuItem { label: "[ PUZZLE: THE NARROW PATH ]".to_string(), x: 0.65, y: start_y + y_step, action: MenuAction::StartPuzzle1, is_focused: false, preview_bg: None, is_left_aligned: true, group_max_len: 0 },
+                    MenuItem { label: "[ PUZZLE: LASER GATE ]".to_string(), x: 0.65, y: start_y + 2.0 * y_step, action: MenuAction::StartPuzzle2, is_focused: false, preview_bg: None, is_left_aligned: true, group_max_len: 0 },
+                    MenuItem { label: "[ PUZZLE: PRISM CHAMBER ]".to_string(), x: 0.65, y: start_y + 3.0 * y_step, action: MenuAction::StartPuzzle3, is_focused: false, preview_bg: None, is_left_aligned: true, group_max_len: 0 },
+                    MenuItem { label: "[ BACK ]".to_string(), x: 0.65, y: start_y + 4.0 * y_step, action: MenuAction::BackToMainMenu, is_focused: false, preview_bg: None, is_left_aligned: true, group_max_len: 0 },
                 ];
+                let max_len = items.iter().map(|i| i.label.len()).max().unwrap_or(0);
+                for i in &mut items { i.group_max_len = max_len; }
+                self.menu_items = items;
             }
             _ => {}
         }
@@ -526,18 +598,45 @@ impl MenuUI {
         self.update_focus();
     }
 
+    pub fn focus_prev(&mut self) {
+        if self.menu_items.is_empty() { return; }
+        self.mouse_focus_active = true; // Use explicit focus mode
+        let current = self.focused_index.unwrap_or(0);
+        let new_idx = if current == 0 { self.menu_items.len() - 1 } else { current - 1 };
+        self.focused_index = Some(new_idx);
+        for (i, item) in self.menu_items.iter_mut().enumerate() {
+            item.is_focused = i == new_idx;
+        }
+        self.update_focus();
+    }
+
+    pub fn focus_next(&mut self) {
+        if self.menu_items.is_empty() { return; }
+        self.mouse_focus_active = true; // Use explicit focus mode
+        let current = self.focused_index.unwrap_or(0);
+        let new_idx = (current + 1) % self.menu_items.len();
+        self.focused_index = Some(new_idx);
+        for (i, item) in self.menu_items.iter_mut().enumerate() {
+            item.is_focused = i == new_idx;
+        }
+        self.update_focus();
+    }
+
     fn update_focus(&mut self) {
         if self.snake.is_dashing {
             return; // Don't change focus during dash
         }
 
-        // If mouse set the focus, don't override it with snake direction
-        // The snake will approach the mouse-selected item instead
-        if self.mouse_focus_active {
+        // If items are left-aligned (list mode), or mouse focus is active,
+        // we use explicit focus (focused_index) instead of snake direction.
+        let is_list_mode = self.menu_items.first().map_or(false, |i| i.is_left_aligned);
+
+        if self.mouse_focus_active || is_list_mode || (!self.snake.user_steering && self.focused_index.is_some()) {
             // Still update approach target to ensure snake heads there
             if let Some(idx) = self.focused_index {
-                let item = &self.menu_items[idx];
-                self.snake.approach_target = Some((item.x * self.grid_width, item.y * self.grid_height));
+                let (tx, ty, dir) = self.get_approach_target_for_item(idx);
+                self.snake.approach_target = Some((tx, ty));
+                self.snake.force_idle_direction = dir;
             }
             return;
         }
@@ -551,28 +650,25 @@ impl MenuUI {
         let mut best_score = f64::MAX;
 
         for (i, item) in self.menu_items.iter().enumerate() {
-            let item_world_x = item.x * self.grid_width;
-            let item_world_y = item.y * self.grid_height;
-
-            let dx = item_world_x - head.0;
-            let dy = item_world_y - head.1;
+            let (min_x, min_y, max_x, max_y) = self.get_item_bounding_box(item);
+            let closest_x = head.0.clamp(min_x, max_x);
+            let closest_y = head.1.clamp(min_y, max_y);
+            let dx = closest_x - head.0;
+            let dy = closest_y - head.1;
             let dist = (dx * dx + dy * dy).sqrt();
 
             if dist < 1.0 { continue; } // Too close, skip
 
-            let angle_to_item = dy.atan2(dx);
+            let dot = dx * sdx + dy * sdy;
+            if dot <= 0.0 {
+                continue; // Ignore items behind or strictly perpendicular
+            }
 
-            // Angle difference (normalized to -PI..PI)
-            let mut angle_diff = angle_to_item - snake_angle;
-            while angle_diff > std::f64::consts::PI { angle_diff -= 2.0 * std::f64::consts::PI; }
-            while angle_diff < -std::f64::consts::PI { angle_diff += 2.0 * std::f64::consts::PI; }
-
-            let abs_angle_diff = angle_diff.abs();
-
-            // Score: weighted combination of angle difference and distance
-            // Items directly in front will have a very small angle difference.
-            // Items behind will have angle difference ~PI (which penalizes them heavily).
-            let score = abs_angle_diff * 3.0 + dist * 0.05;
+            let perp = (dy * sdx - dx * sdy).abs();
+            
+            // Perpendicular distance is penalized heavily to enforce moving in a straight line.
+            // Forward distance is penalized lightly to pick the closest item in that line.
+            let score = perp * 2.0 + dot * 0.5;
 
             if score < best_score {
                 best_score = score;
@@ -588,8 +684,9 @@ impl MenuUI {
 
         // Set approach target for the focused item
         if let Some(idx) = self.focused_index {
-            let item = &self.menu_items[idx];
-            self.snake.approach_target = Some((item.x * self.grid_width, item.y * self.grid_height));
+            let (tx, ty, dir) = self.get_approach_target_for_item(idx);
+            self.snake.approach_target = Some((tx, ty));
+            self.snake.force_idle_direction = dir;
         } else {
             self.snake.approach_target = None;
         }
@@ -663,8 +760,9 @@ impl MenuUI {
             self.focused_index = Some(idx);
 
             // Also steer snake toward this item
-            let item = &self.menu_items[idx];
-            self.snake.approach_target = Some((item.x * self.grid_width, item.y * self.grid_height));
+            let (tx, ty, dir) = self.get_approach_target_for_item(idx);
+            self.snake.approach_target = Some((tx, ty));
+            self.snake.force_idle_direction = dir;
             self.snake.user_steering = false;
             self.snake.user_steer_cooldown = 0.0;
 
@@ -674,6 +772,50 @@ impl MenuUI {
             true
         } else {
             false
+        }
+    }
+
+    fn get_item_bounding_box(&self, item: &MenuItem) -> (f64, f64, f64, f64) {
+        let center_x = item.x * self.grid_width;
+        let center_y = item.y * self.grid_height;
+        let half_w = item.label.len() as f64 / 4.0; // grid cells
+        let half_h = 1.0; // grid cells
+
+        if item.is_left_aligned {
+            let left_x = center_x - (item.group_max_len as f64 / 4.0);
+            (left_x, center_y - half_h, left_x + half_w * 2.0, center_y + half_h)
+        } else {
+            (center_x - half_w, center_y - half_h, center_x + half_w, center_y + half_h)
+        }
+    }
+
+    fn get_approach_target_for_item(&self, idx: usize) -> (f64, f64, Option<i32>) {
+        let item = &self.menu_items[idx];
+        let (min_x, min_y, max_x, max_y) = self.get_item_bounding_box(item);
+        let center_x = (min_x + max_x) / 2.0;
+        let center_y = (min_y + max_y) / 2.0;
+
+        if item.is_left_aligned {
+            (min_x - 4.5, center_y, Some(2))
+        } else {
+            let cx = 0.5 * self.grid_width;
+            let cy = 0.5 * self.grid_height;
+            
+            if (center_x - cx).abs() > (center_y - cy).abs() {
+                // Horizontal item
+                if center_x > cx {
+                    (min_x - 1.0, center_y, None) // approach from left
+                } else {
+                    (max_x + 1.0, center_y, None) // approach from right
+                }
+            } else {
+                // Vertical item
+                if center_y > cy {
+                    (center_x, min_y - 1.0, None)
+                } else {
+                    (center_x, max_y + 1.0, None)
+                }
+            }
         }
     }
 

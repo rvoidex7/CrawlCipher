@@ -304,10 +304,30 @@ async fn main() -> Result<()> {
                         | MenuState::MissionSelect => {
                             match key.code {
                                 // Arrow keys & WASD (accumulate dx/dy to support diagonal chording)
-                                KeyCode::Up | KeyCode::Char('w') | KeyCode::Char('W') => menu_input_handler.handle_key_direction(0, -1),
-                                KeyCode::Down | KeyCode::Char('s') | KeyCode::Char('S') => menu_input_handler.handle_key_direction(0, 1),
-                                KeyCode::Left | KeyCode::Char('a') | KeyCode::Char('A') => menu_input_handler.handle_key_direction(-1, 0),
-                                KeyCode::Right | KeyCode::Char('d') | KeyCode::Char('D') => menu_input_handler.handle_key_direction(1, 0),
+                                KeyCode::Up | KeyCode::Char('w') | KeyCode::Char('W') => {
+                                    if menu.menu_items.first().map_or(false, |i| i.is_left_aligned) {
+                                        menu.focus_prev();
+                                    } else {
+                                        menu_input_handler.handle_key_direction(0, -1);
+                                    }
+                                }
+                                KeyCode::Down | KeyCode::Char('s') | KeyCode::Char('S') => {
+                                    if menu.menu_items.first().map_or(false, |i| i.is_left_aligned) {
+                                        menu.focus_next();
+                                    } else {
+                                        menu_input_handler.handle_key_direction(0, 1);
+                                    }
+                                }
+                                KeyCode::Left | KeyCode::Char('a') | KeyCode::Char('A') => {
+                                    if !menu.menu_items.first().map_or(false, |i| i.is_left_aligned) {
+                                        menu_input_handler.handle_key_direction(-1, 0);
+                                    }
+                                }
+                                KeyCode::Right | KeyCode::Char('d') | KeyCode::Char('D') => {
+                                    if !menu.menu_items.first().map_or(false, |i| i.is_left_aligned) {
+                                        menu_input_handler.handle_key_direction(1, 0);
+                                    }
+                                }
                                 // Diagonal shortcuts
                                 KeyCode::Char('q') | KeyCode::Char('Q') => menu_input_handler.handle_key_direction(-1, -1),
                                 KeyCode::Char('e') | KeyCode::Char('E') => menu_input_handler.handle_key_direction(1, -1),
@@ -401,7 +421,7 @@ async fn main() -> Result<()> {
 
             // Resolve the accumulated direction for MainMenu every 50ms window
             // This provides a "chording" window for the user to press e.g., Up+Right together
-            if matches!(menu.state, MenuState::MainMenu) && menu_input_timer.elapsed() >= Duration::from_millis(50) {
+            if matches!(menu.state, MenuState::MainMenu | MenuState::BackgroundsMenu | MenuState::BlockchainMenu | MenuState::SettingsHelpMenu | MenuState::MissionSelect) && menu_input_timer.elapsed() >= Duration::from_millis(50) {
                 if let Some(dir) = menu_input_handler.resolve_direction() {
                     menu.mouse_focus_active = false;
                     menu.snake.set_direction(dir);
