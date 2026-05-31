@@ -955,11 +955,17 @@ fn render_snake_menu(frame: &mut Frame, area: Rect, ui: &MenuUI) {
             }
         }
 
-        // Draw the label character by character
+        // Draw the label character by character and the extra background below it
         for (i, ch) in item.label.chars().enumerate() {
             let sx = screen_x_start + i as i32;
             if sx >= area.x as i32 && sx < (area.x + area.width) as i32 {
+                // Draw the text
                 buf.set_string(sx as u16, screen_y, &ch.to_string(), style);
+                
+                // Draw the extended background 1 unit below
+                if screen_y + 1 < game_area.y + game_area.height {
+                    buf.set_string(sx as u16, screen_y + 1, " ", Style::default().bg(bg_color));
+                }
             }
         }
 
