@@ -268,9 +268,19 @@ async fn main() -> Result<()> {
 
         terminal.draw(|f| render_menu(f, f.size(), &menu))?;
 
-        if event::poll(Duration::from_millis(16))? { // ~60fps for smooth snake animation
-            // Drain all available events
-            while event::poll(Duration::from_millis(0))? {
+        let start_frame = std::time::Instant::now();
+        let frame_duration = Duration::from_millis(16); // ~60fps for smooth animation
+
+        loop {
+            let elapsed = start_frame.elapsed();
+            if elapsed >= frame_duration {
+                break;
+            }
+            let timeout = frame_duration - elapsed;
+
+            if event::poll(timeout)? {
+                // Drain all available events
+                while event::poll(Duration::from_millis(0))? {
                 let ev = event::read()?;
 
                 // Handle mouse events for MainMenu
@@ -415,19 +425,20 @@ async fn main() -> Result<()> {
                         }
                     }
 
-                }
-            } // closes if let Event::Key
-        } // end while (draining events)
-
-            // Resolve the accumulated direction for MainMenu every 50ms window
-            // This provides a "chording" window for the user to press e.g., Up+Right together
-            if matches!(menu.state, MenuState::MainMenu | MenuState::BackgroundsMenu | MenuState::BlockchainMenu | MenuState::SettingsHelpMenu | MenuState::MissionSelect) && menu_input_timer.elapsed() >= Duration::from_millis(50) {
-                if let Some(dir) = menu_input_handler.resolve_direction() {
-                    menu.mouse_focus_active = false;
-                    menu.snake.set_direction(dir);
-                }
-                menu_input_timer = std::time::Instant::now();
             }
+        } // closes if let Event::Key
+                } // end while (draining events)
+            } // end if event::poll
+        } // end loop waiting for frame_duration
+
+        // Resolve the accumulated direction for MainMenu every 50ms window
+        // This provides a "chording" window for the user to press e.g., Up+Right together
+        if matches!(menu.state, MenuState::MainMenu | MenuState::BackgroundsMenu | MenuState::BlockchainMenu | MenuState::SettingsHelpMenu | MenuState::MissionSelect) && menu_input_timer.elapsed() >= Duration::from_millis(50) {
+            if let Some(dir) = menu_input_handler.resolve_direction() {
+                menu.mouse_focus_active = false;
+                menu.snake.set_direction(dir);
+            }
+            menu_input_timer = std::time::Instant::now();
         }
     }
 

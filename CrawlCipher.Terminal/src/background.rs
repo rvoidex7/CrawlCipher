@@ -89,12 +89,13 @@ impl BackgroundPattern {
         if self.height == 0 {
             return ' ';
         }
-        let row_idx = (y as usize) % self.height;
+        let row_idx = (y.rem_euclid(self.height as i32)) as usize;
         let row = &self.rows[row_idx];
 
         if row.is_empty() { return ' '; }
 
-        let char_idx = (x as usize) % row.chars().count();
+        let width = row.chars().count() as i32;
+        let char_idx = (x.rem_euclid(width)) as usize;
         row.chars().nth(char_idx).unwrap_or(' ')
     }
 }

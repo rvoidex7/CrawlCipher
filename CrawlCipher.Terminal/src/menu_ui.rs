@@ -373,6 +373,10 @@ pub struct MenuUI {
 
     pub bg_pattern: background::BackgroundPattern,
     pub bg_previews: std::collections::HashMap<String, background::BackgroundPattern>,
+    pub bg_offset_x: f64,
+    pub bg_offset_y: f64,
+    pub bg_progress: f64,
+    pub bg_tick_counter: u32,
 
     // New: Snake menu system
     pub snake: MenuSnake,
@@ -434,6 +438,10 @@ impl MenuUI {
             mission_selection: 0,
             bg_pattern: background::BackgroundPattern::new(),
             bg_previews,
+            bg_offset_x: 0.0,
+            bg_offset_y: 0.0,
+            bg_progress: 0.0,
+            bg_tick_counter: 0,
 
             snake,
             menu_items,
@@ -591,8 +599,26 @@ impl MenuUI {
 
         // Cap dt to avoid huge jumps
         let dt = dt.min(0.1);
-
+        let old_timer = self.snake.move_timer;
         self.snake.tick(dt, self.grid_width, self.grid_height);
+        
+        let snake_ticked = self.snake.move_timer < old_timer + dt - 0.0001;
+        let (sdx, sdy) = MenuSnake::direction_delta(self.snake.direction);
+        
+        if self.snake.is_dashing {
+            self.bg_progress += dt * 12.5; // Half of dash speed
+            while self.bg_progress >= 1.0 {
+                self.bg_offset_x += sdx;
+                self.bg_offset_y += sdy;
+                self.bg_progress -= 1.0;
+            }
+        } else if snake_ticked {
+            self.bg_tick_counter += 1;
+            if self.bg_tick_counter % 2 == 0 { // 1/2 speed phase-locked parallax
+                self.bg_offset_x += sdx;
+                self.bg_offset_y += sdy;
+            }
+        }
 
         // Update focus based on snake direction
         self.update_focus();
@@ -959,13 +985,16 @@ fn render_snake_menu(frame: &mut Frame, area: Rect, ui: &MenuUI) {
                 continue;
             }
 
+            let bg_world_x = world_x + ui.bg_offset_x.round() as i32;
+            let bg_world_y = world_y + ui.bg_offset_y.round() as i32;
+
             let (bg_color, bg_left_char, bg_right_char) = if ui.bg_pattern.width == 0 {
-                let is_even = (world_x + world_y).rem_euclid(2) == 0;
+                let is_even = (bg_world_x + bg_world_y).rem_euclid(2) == 0;
                 let c = if is_even { Color::Rgb(6, 6, 12) } else { Color::Rgb(12, 12, 20) };
                 (c, ' ', ' ')
             } else {
-                let c1 = ui.bg_pattern.get_char(world_x * 2, world_y);
-                let c2 = ui.bg_pattern.get_char(world_x * 2 + 1, world_y);
+                let c1 = ui.bg_pattern.get_char(bg_world_x * 2, bg_world_y);
+                let c2 = ui.bg_pattern.get_char(bg_world_x * 2 + 1, bg_world_y);
                 if c1 == '█' {
                     (Color::Rgb(30, 30, 30), ' ', ' ')
                 } else {
