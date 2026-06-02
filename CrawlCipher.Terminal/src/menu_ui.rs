@@ -471,13 +471,20 @@ impl MenuUI {
 
         match self.state {
             MenuState::MainMenu => {
-                self.menu_items = vec![
-                    MenuItem { label: "[ BLOCKCHAIN PLAY ]".to_string(), x: 0.50, y: 0.22, action: MenuAction::MenuBlockchainPlay, is_focused: false, preview_bg: None, is_left_aligned: false, group_max_len: 0 },
-                    MenuItem { label: "[ OFFLINE PLAY ]".to_string(), x: 0.22, y: 0.45, action: MenuAction::MenuOfflinePlay, is_focused: false, preview_bg: None, is_left_aligned: false, group_max_len: 0 },
-                    MenuItem { label: "[ LAN / P2P PLAY ]".to_string(), x: 0.78, y: 0.45, action: MenuAction::MenuLanP2PPlay, is_focused: false, preview_bg: None, is_left_aligned: false, group_max_len: 0 },
-                    MenuItem { label: "[ SETTINGS / HELP ]".to_string(), x: 0.50, y: 0.65, action: MenuAction::MenuSettingsHelp, is_focused: false, preview_bg: None, is_left_aligned: false, group_max_len: 0 },
-                    MenuItem { label: "[ EXIT TERMINAL ]".to_string(), x: 0.50, y: 0.85, action: MenuAction::ExitTerminal, is_focused: false, preview_bg: None, is_left_aligned: false, group_max_len: 0 },
+                let y_step = 0.12;
+                let start_y = 0.35;
+                let mut items = vec![
+                    MenuItem { label: "[ BLOCKCHAIN PLAY ]".to_string(), x: 0.65, y: start_y, action: MenuAction::MenuBlockchainPlay, is_focused: false, preview_bg: None, is_left_aligned: true, group_max_len: 0 },
+                    MenuItem { label: "[ OFFLINE PLAY ]".to_string(), x: 0.65, y: start_y + y_step, action: MenuAction::MenuOfflinePlay, is_focused: false, preview_bg: None, is_left_aligned: true, group_max_len: 0 },
+                    MenuItem { label: "[ LAN / P2P PLAY ]".to_string(), x: 0.65, y: start_y + 2.0 * y_step, action: MenuAction::MenuLanP2PPlay, is_focused: false, preview_bg: None, is_left_aligned: true, group_max_len: 0 },
+                    MenuItem { label: "[ SETTINGS / HELP ]".to_string(), x: 0.65, y: start_y + 3.0 * y_step, action: MenuAction::MenuSettingsHelp, is_focused: false, preview_bg: None, is_left_aligned: true, group_max_len: 0 },
+                    MenuItem { label: "[ EXIT TERMINAL ]".to_string(), x: 0.65, y: start_y + 4.0 * y_step, action: MenuAction::ExitTerminal, is_focused: false, preview_bg: None, is_left_aligned: true, group_max_len: 0 },
                 ];
+                let max_len = items.iter().map(|i| i.label.len()).max().unwrap_or(0);
+                for i in &mut items {
+                    i.group_max_len = max_len;
+                }
+                self.menu_items = items;
             }
             MenuState::BlockchainMenu => {
                 let y_step = 0.15;
@@ -1248,6 +1255,34 @@ fn render_snake_menu(frame: &mut Frame, area: Rect, ui: &MenuUI) {
                 Color::Rgb(intensity / 2, intensity / 2, intensity / 2) // Gray when no target
             };
             buf.set_string(screen_x, screen_y, "··", Style::default().fg(gaze_color));
+        }
+    }
+
+    // 6. Draw Logo on MainMenu
+    if matches!(ui.state, MenuState::MainMenu) {
+        let logo = [
+            r#"  .,-::::: :::::::..    :::.  .::    .   .::::::         "#,
+            r#",;;;'````' ;;;;``;;;;   ;;`;; ';;,  ;;  ;;;' ;;;         "#,
+            r#"[[[         [[[,/[[['  ,[[ '[[,'[[, [[, [['  [[[         "#,
+            r#"$$$         $$$$$$c   c$$$cc$$$c Y$c$$$c$P   $$'         "#,
+            r#"`88bo,__,o, 888b "88bo,888   888, "88"888   o88oo,.__    "#,
+            r#"  "YUMMMMMP"MMMM   "W" YMM   ""`   "M "M"   """"YUMMM    "#,
+            r#"  .,-:::::  :::::::::::::.  ::   .: .,:::::: :::::::..   "#,
+            r#",;;;'````'  ;;; `;;;```.;;;,;;   ;;,;;;;'''' ;;;;``;;;;  "#,
+            r#"[[[         [[[  `]]nnn]]',[[[,,,[[[ [[cccc   [[[,/[[['  "#,
+            r#"$$$         $$$   $$$""   "$$$"""$$$ $$""""   $$$$$$c    "#,
+            r#"`88bo,__,o, 888   888o     888   "88o888oo,__ 888b "88bo,"#,
+            r#"  "YUMMMMMP"MMM   YMMMb    MMM    YMM""""YUMMMMMMM   "W" "#,
+        ];
+        
+        let start_x = area.x.saturating_add(2);
+        let start_y = area.y.saturating_add(1);
+        
+        for (i, line) in logo.iter().enumerate() {
+            let y = start_y + i as u16;
+            if y < game_area.y + game_area.height {
+                buf.set_string(start_x, y, *line, Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD));
+            }
         }
     }
 
