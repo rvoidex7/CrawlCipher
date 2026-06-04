@@ -677,7 +677,7 @@ impl MenuUI {
         let head = self.snake.head();
 
         let (sdx, sdy) = MenuSnake::direction_delta(self.snake.direction);
-        let snake_angle = sdy.atan2(sdx);
+        let _snake_angle = sdy.atan2(sdx);
 
         let mut best_index: Option<usize> = None;
         let mut best_score = f64::MAX;
