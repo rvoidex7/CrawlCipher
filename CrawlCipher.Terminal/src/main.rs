@@ -172,22 +172,34 @@ async fn main() -> Result<()> {
     'app_loop: loop {
 
     // Reset menu to main state on app restart
+    // Get real terminal size FIRST so grid dimensions are correct before placing snake
+    let first_term_size = terminal.size()?;
+    menu.update_layout(first_term_size.width, first_term_size.height);
     menu.state = MenuState::MainMenu;
+    menu.update_items_for_state();
     menu.reset_snake();
+    menu.place_snake_at_first_item();
 
     // MAIN MENU LOOP
     'menu_loop: loop {
-        // Tick the menu snake simulation for any snake-based menu
+        // 1. Update grid dimensions FIRST (real terminal size, before any snake movement)
+        if matches!(menu.state, MenuState::MainMenu | MenuState::BlockchainMenu | MenuState::SettingsHelpMenu | MenuState::BackgroundsMenu | MenuState::MissionSelect) {
+            let term_size = terminal.size()?;
+            menu.update_layout(term_size.width, term_size.height);
+        }
+
+        // 2. Tick snake physics
         if matches!(menu.state, MenuState::MainMenu | MenuState::BlockchainMenu | MenuState::SettingsHelpMenu | MenuState::BackgroundsMenu | MenuState::MissionSelect) {
             menu.tick();
 
-            // Check if a dash action completed
+            // 3. Check if a dash action completed
             if let Some(action) = menu.poll_dash_action() {
                 match action {
                     MenuAction::MenuBlockchainPlay => {
                         menu.state = MenuState::BlockchainMenu;
                         menu.update_items_for_state();
                         menu.reset_snake();
+                        menu.place_snake_at_first_item();
                     }
                     MenuAction::MenuOfflinePlay => {
                         menu.secret_key.clear();
@@ -196,6 +208,7 @@ async fn main() -> Result<()> {
                         menu.mission_selection = 0;
                         menu.update_items_for_state();
                         menu.reset_snake();
+                        menu.place_snake_at_first_item();
                     }
                     MenuAction::MenuLanP2PPlay => {
                         // Coming Soon (do nothing or show a message later)
@@ -204,6 +217,7 @@ async fn main() -> Result<()> {
                         menu.state = MenuState::SettingsHelpMenu;
                         menu.update_items_for_state();
                         menu.reset_snake();
+                        menu.place_snake_at_first_item();
                     }
                     MenuAction::ExitTerminal => {
                         break 'app_loop;
@@ -213,6 +227,7 @@ async fn main() -> Result<()> {
                             menu.state = MenuState::MissionSelect;
                             menu.update_items_for_state();
                             menu.reset_snake();
+                            menu.place_snake_at_first_item();
                         } else {
                             menu.state = MenuState::CredentialsInput;
                             menu.cred_stage = 0;
@@ -232,6 +247,7 @@ async fn main() -> Result<()> {
                         menu.state = MenuState::BackgroundsMenu;
                         menu.update_items_for_state();
                         menu.reset_snake();
+                        menu.place_snake_at_first_item();
                     }
                     MenuAction::SettingsHelpManual => {
                         menu.state = MenuState::HelpManual;
@@ -240,6 +256,7 @@ async fn main() -> Result<()> {
                         menu.state = MenuState::MainMenu;
                         menu.update_items_for_state();
                         menu.reset_snake();
+                        menu.place_snake_at_first_item();
                     }
                     MenuAction::BackgroundSelect(idx) => {
                         menu.selected_bg_index = idx;
@@ -255,15 +272,10 @@ async fn main() -> Result<()> {
                         menu.state = MenuState::SettingsHelpMenu;
                         menu.update_items_for_state();
                         menu.reset_snake();
+                        menu.place_snake_at_first_item();
                     }
                 }
             }
-        }
-
-        // Update layout info for mouse mapping
-        if matches!(menu.state, MenuState::MainMenu | MenuState::BlockchainMenu | MenuState::SettingsHelpMenu | MenuState::BackgroundsMenu | MenuState::MissionSelect) {
-            let term_size = terminal.size()?;
-            menu.update_layout(term_size.width, term_size.height);
         }
 
         terminal.draw(|f| render_menu(f, f.size(), &menu))?;
@@ -313,11 +325,12 @@ async fn main() -> Result<()> {
                         | MenuState::BackgroundsMenu
                         | MenuState::MissionSelect => {
                             match key.code {
-                                // Arrow keys & WASD (accumulate dx/dy to support diagonal chording)
+                                // Arrow keys & WASD: steer snake and allow focus re-scan
                                 KeyCode::Up | KeyCode::Char('w') | KeyCode::Char('W') => {
                                     if menu.menu_items.first().map_or(false, |i| i.is_left_aligned) {
                                         menu.focus_prev();
                                     } else {
+                                        menu.mouse_focus_active = false; // Allow re-scan
                                         menu_input_handler.handle_key_direction(0, -1);
                                     }
                                 }
@@ -325,27 +338,37 @@ async fn main() -> Result<()> {
                                     if menu.menu_items.first().map_or(false, |i| i.is_left_aligned) {
                                         menu.focus_next();
                                     } else {
+                                        menu.mouse_focus_active = false; // Allow re-scan
                                         menu_input_handler.handle_key_direction(0, 1);
                                     }
                                 }
                                 KeyCode::Left | KeyCode::Char('a') | KeyCode::Char('A') => {
                                     if !menu.menu_items.first().map_or(false, |i| i.is_left_aligned) {
+                                        menu.mouse_focus_active = false; // Allow re-scan
                                         menu_input_handler.handle_key_direction(-1, 0);
                                     }
                                 }
                                 KeyCode::Right | KeyCode::Char('d') | KeyCode::Char('D') => {
                                     if !menu.menu_items.first().map_or(false, |i| i.is_left_aligned) {
+                                        menu.mouse_focus_active = false; // Allow re-scan
                                         menu_input_handler.handle_key_direction(1, 0);
                                     }
                                 }
                                 // Diagonal shortcuts
-                                KeyCode::Char('q') | KeyCode::Char('Q') => menu_input_handler.handle_key_direction(-1, -1),
-                                KeyCode::Char('e') | KeyCode::Char('E') => menu_input_handler.handle_key_direction(1, -1),
-                                KeyCode::Char('z') | KeyCode::Char('Z') => menu_input_handler.handle_key_direction(-1, 1),
-                                KeyCode::Char('c') | KeyCode::Char('C') => menu_input_handler.handle_key_direction(1, 1),
+                                KeyCode::Char('q') | KeyCode::Char('Q') => { menu.mouse_focus_active = false; menu_input_handler.handle_key_direction(-1, -1); }
+                                KeyCode::Char('e') | KeyCode::Char('E') => { menu.mouse_focus_active = false; menu_input_handler.handle_key_direction(1, -1); }
+                                KeyCode::Char('z') | KeyCode::Char('Z') => { menu.mouse_focus_active = false; menu_input_handler.handle_key_direction(-1, 1); }
+                                KeyCode::Char('c') | KeyCode::Char('C') => { menu.mouse_focus_active = false; menu_input_handler.handle_key_direction(1, 1); }
                                 // Dash select (Enter or F)
                                 KeyCode::Enter | KeyCode::Char('f') | KeyCode::Char('F') => {
                                     menu.trigger_dash();
+                                }
+                                // Number shortcuts 1-9: instant select without dash animation
+                                KeyCode::Char(c) if c.is_ascii_digit() && c != '0' => {
+                                    let n = c as usize - '0' as usize;
+                                    if menu.focus_by_number(n) {
+                                        menu.trigger_dash();
+                                    }
                                 }
                                 KeyCode::Esc => {
                                     if !matches!(menu.state, MenuState::MainMenu) {

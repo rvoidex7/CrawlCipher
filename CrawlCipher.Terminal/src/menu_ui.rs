@@ -377,6 +377,7 @@ pub struct MenuUI {
     pub bg_offset_y: f64,
     pub bg_progress: f64,
     pub bg_tick_counter: u32,
+    pub breadcrumb_path: Vec<String>,
 
     // New: Snake menu system
     pub snake: MenuSnake,
@@ -442,6 +443,7 @@ impl MenuUI {
             bg_offset_y: 0.0,
             bg_progress: 0.0,
             bg_tick_counter: 0,
+            breadcrumb_path: Vec::new(),
 
             snake,
             menu_items,
@@ -488,7 +490,7 @@ impl MenuUI {
             }
             MenuState::BlockchainMenu => {
                 let y_step = 0.15;
-                let start_y = 0.5 - y_step; // 3 items, center is index 1
+                let start_y = 0.5 - y_step;
                 let mut items = vec![
                     MenuItem { label: "[ START ]".to_string(), x: 0.65, y: start_y, action: MenuAction::BlockchainStart, is_focused: false, preview_bg: None, is_left_aligned: true, group_max_len: 0 },
                     MenuItem { label: "[ MANAGE CREDENTIALS ]".to_string(), x: 0.65, y: start_y + y_step, action: MenuAction::BlockchainManageCreds, is_focused: false, preview_bg: None, is_left_aligned: true, group_max_len: 0 },
@@ -500,7 +502,7 @@ impl MenuUI {
             }
             MenuState::SettingsHelpMenu => {
                 let y_step = 0.15;
-                let start_y = 0.5 - y_step; // 3 items, center is index 1
+                let start_y = 0.5 - y_step;
                 let mut items = vec![
                     MenuItem { label: "[ BACKGROUNDS ]".to_string(), x: 0.65, y: start_y, action: MenuAction::SettingsBackgrounds, is_focused: false, preview_bg: None, is_left_aligned: true, group_max_len: 0 },
                     MenuItem { label: "[ HELP ]".to_string(), x: 0.65, y: start_y + y_step, action: MenuAction::SettingsHelpManual, is_focused: false, preview_bg: None, is_left_aligned: true, group_max_len: 0 },
@@ -514,59 +516,93 @@ impl MenuUI {
                 let mut items = Vec::new();
                 let bgs = &self.embedded_bgs;
                 let total_bgs = bgs.len() + 1; // +1 for None (Classic Grid)
-                let cols = total_bgs; // Put them all in one row!
-                let rows = 1;
-                
-                let start_y = 0.35;
-                let y_step = 0.35;
-                
-                // For 4 items: 0.2, 0.4, 0.6, 0.8
-                let x_step = 0.6 / (cols.max(2) - 1) as f64; // Spreads from 0.2 to 0.8
-                let start_x = 0.2;
 
+                // Collect all items (bg selectors + custom + back)
+                let mut all_labels: Vec<(String, MenuAction, Option<String>)> = Vec::new();
                 for i in 0..total_bgs {
-                    let col = i % cols;
-                    let row = i / cols;
-                    
                     let is_none = i == bgs.len();
-                    let bg_name = if is_none { "NONE" } else { &bgs[i] };
+                    let bg_name = if is_none { "NONE".to_string() } else { bgs[i].clone() };
                     let label = if is_none { " [CLASSIC GRID] ".to_string() } else { format!(" [{}] ", bg_name) };
-                    
+                    all_labels.push((label, MenuAction::BackgroundSelect(i), Some(bg_name)));
+                }
+                all_labels.push(("[ CUSTOM FILE ]".to_string(), MenuAction::BackgroundCustom, None));
+                all_labels.push(("[ BACK ]".to_string(), MenuAction::BackToSettings, None));
+
+                let _n = all_labels.len();
+                let gw = self.grid_width;
+                let gh = self.grid_height;
+
+                // Logo occupies top-left: ~62 screen chars wide, ~15 screen rows tall
+                // Convert to normalized coordinates based on actual terminal size
+                let logo_right_norm = if gw > 1.0 { (62.0 / (gw * 2.0)).min(0.95) } else { 0.5 };
+                let logo_bottom_norm = if gh > 1.0 { (16.0 / gh).min(0.90) } else { 0.5 };
+
+                // Available free zones:
+                // Zone A (right strip): x in [logo_right_norm+margin .. 0.95], y in [0.05 .. 0.95]
+                // Zone B (bottom strip): x in [0.05 .. 0.95], y in [logo_bottom_norm+margin .. 0.95]
+                let margin = 0.03;
+                let zone_a_left = (logo_right_norm + margin).min(0.90);
+                let _zone_a_width = (0.95 - zone_a_left).max(0.0);
+                let zone_b_top = (logo_bottom_norm + margin).min(0.90);
+                let _zone_b_height = (0.95 - zone_b_top).max(0.0);
+
+                // BackgroundsMenu has NO logo — use full screen for slot placement.
+                // Logo is shown on other menus, so only those need logo exclusion.
+                // Here: logo exclusion zone = zero (no reserved area).
+                let logo_w_norm = 0.0_f64;
+                let logo_h_norm = 0.0_f64;
+
+                // Generate slots on a 4x4 coarse grid across the full screen
+                let grid_cols = 4_i32;
+                let grid_rows = 4_i32;
+                let mut valid_slots = Vec::new();
+
+                for r in 0..grid_rows {
+                    for c in 0..grid_cols {
+                        let cx = 0.1 + (0.8 / grid_cols as f64) * (c as f64 + 0.5);
+                        let cy = 0.1 + (0.8 / grid_rows as f64) * (r as f64 + 0.5);
+
+                        // Skip if inside logo exclusion zone (none for BackgroundsMenu)
+                        if cx < logo_w_norm + 0.05 && cy < logo_h_norm + 0.05 {
+                            continue;
+                        }
+                        valid_slots.push((cx, cy));
+                    }
+                }
+
+                // Scatter: sort by a mixed key to avoid strict grid look
+                valid_slots.sort_by(|a, b| {
+                    let a_val = (a.0 * 13.0 + a.1 * 17.0) % 1.0;
+                    let b_val = (b.0 * 13.0 + b.1 * 17.0) % 1.0;
+                    a_val.partial_cmp(&b_val).unwrap()
+                });
+
+                // Assign items to slots with tiny jitter
+                for (i, (label, action, bg_name)) in all_labels.into_iter().enumerate() {
+                    let (mut slot_x, mut slot_y) = if i < valid_slots.len() {
+                        valid_slots[i]
+                    } else {
+                        (0.5, 0.9) // fallback
+                    };
+
+                    let jitter_x = ((i * 7) % 11) as f64 / 11.0 * 0.04 - 0.02;
+                    let jitter_y = ((i * 13) % 17) as f64 / 17.0 * 0.04 - 0.02;
+                    slot_x = (slot_x + jitter_x).clamp(0.08, 0.92);
+                    slot_y = (slot_y + jitter_y).clamp(0.08, 0.92);
+
                     items.push(MenuItem {
-                        label,
-                        x: start_x + (col as f64 * x_step),
-                        y: start_y + (row as f64 * y_step),
-                        action: MenuAction::BackgroundSelect(i),
-                        is_focused: false,
-                        preview_bg: Some(bg_name.to_string()),
-                        is_left_aligned: false, group_max_len: 0
+                        label, x: slot_x, y: slot_y,
+                        action, is_focused: false,
+                        preview_bg: bg_name,
+                        is_left_aligned: false, group_max_len: 0,
                     });
                 }
-                
-                let bottom_y = start_y + (rows as f64 * y_step);
-                items.push(MenuItem {
-                    label: "[ CUSTOM FILE ]".to_string(),
-                    x: 0.35, y: bottom_y,
-                    action: MenuAction::BackgroundCustom,
-                    is_focused: false,
-                    preview_bg: None,
-                    is_left_aligned: false, group_max_len: 0
-                });
-                
-                items.push(MenuItem {
-                    label: "[ BACK ]".to_string(),
-                    x: 0.65, y: bottom_y,
-                    action: MenuAction::BackToSettings,
-                    is_focused: false,
-                    preview_bg: None,
-                    is_left_aligned: false, group_max_len: 0
-                });
-                
+
                 self.menu_items = items;
             }
             MenuState::MissionSelect => {
                 let y_step = 0.15;
-                let start_y = 0.5 - 2.0 * y_step; // 5 items, center is index 2
+                let start_y = 0.5 - 2.0 * y_step;
                 let mut items = vec![
                     MenuItem { label: "[ EXPEDITION ]".to_string(), x: 0.65, y: start_y, action: MenuAction::StartExpedition, is_focused: false, preview_bg: None, is_left_aligned: true, group_max_len: 0 },
                     MenuItem { label: "[ PUZZLE: THE NARROW PATH ]".to_string(), x: 0.65, y: start_y + y_step, action: MenuAction::StartPuzzle1, is_focused: false, preview_bg: None, is_left_aligned: true, group_max_len: 0 },
@@ -579,6 +615,79 @@ impl MenuUI {
                 self.menu_items = items;
             }
             _ => {}
+        }
+
+        // After placing items at their ideal positions, resolve any
+        // collisions with the logo's reserved area
+        self.resolve_collisions();
+    }
+
+    /// "Arsa kiralama" sistemi: Logo sol üstte sabit bir alan kiralıyor.
+    /// Bu alan üzerine düşen menü öğeleri otomatik olarak boş alana kaydırılır.
+    /// Aynı satırdaki bir öğe çarptıysa, tüm satır birlikte kayar.
+    fn resolve_collisions(&mut self) {
+        let gw = self.grid_width;
+        let gh = self.grid_height;
+        if gw < 1.0 || gh < 1.0 { return; }
+
+        // Logo reserved area in screen coordinates
+        let logo_right_chars = 62.0_f64;
+        let logo_bottom_rows = 15.0_f64;
+
+        // Convert logo bottom edge to normalized y (with 1 row padding)
+        let logo_bottom_norm = (logo_bottom_rows + 1.0) / gh;
+
+        // Minimum vertical gap between items (2 screen rows)
+        let min_gap = 2.0 / gh;
+
+        // Pass 1: Find which y-values (rows) have ANY item colliding with the logo.
+        // If one item in a row collides, the WHOLE row will be pushed.
+        let mut colliding_rows: Vec<u64> = Vec::new(); // y values (as bits) that collide
+        for item in self.menu_items.iter() {
+            let screen_y = item.y * gh;
+            let center_x_screen = item.x * gw * 2.0;
+            let half_label = item.label.len() as f64 / 2.0;
+            let left_x_screen = center_x_screen - half_label;
+
+            if screen_y < logo_bottom_rows && left_x_screen < logo_right_chars {
+                let y_bits = item.y.to_bits();
+                if !colliding_rows.contains(&y_bits) {
+                    colliding_rows.push(y_bits);
+                }
+            }
+        }
+
+        // Push ALL items in colliding rows below the logo
+        for item in self.menu_items.iter_mut() {
+            if colliding_rows.contains(&item.y.to_bits()) {
+                item.y = item.y.max(logo_bottom_norm);
+            }
+        }
+
+        // Pass 2: Resolve item-to-item vertical stacking.
+        // Items in the same column (similar x) that are too close get spaced out.
+        // Run multiple passes until stable (cascading pushes).
+        for _ in 0..self.menu_items.len() {
+            let mut changed = false;
+            for i in 1..self.menu_items.len() {
+                let prev_x = self.menu_items[i - 1].x;
+                let prev_y = self.menu_items[i - 1].y;
+                let curr_x = self.menu_items[i].x;
+                let curr_y = self.menu_items[i].y;
+
+                // Only enforce gap for items in the same column
+                let dx = (curr_x - prev_x).abs();
+                if dx < 0.1 && curr_y - prev_y < min_gap && curr_y - prev_y >= 0.0 {
+                    self.menu_items[i].y = prev_y + min_gap;
+                    changed = true;
+                }
+            }
+            if !changed { break; }
+        }
+
+        // Pass 3: Clamp all items within screen bounds
+        for item in self.menu_items.iter_mut() {
+            item.y = item.y.clamp(0.02, 0.95);
         }
     }
 
@@ -633,39 +742,91 @@ impl MenuUI {
 
     pub fn focus_prev(&mut self) {
         if self.menu_items.is_empty() { return; }
-        self.mouse_focus_active = true; // Use explicit focus mode
+        self.mouse_focus_active = true;
         let current = self.focused_index.unwrap_or(0);
         let new_idx = if current == 0 { self.menu_items.len() - 1 } else { current - 1 };
-        self.focused_index = Some(new_idx);
-        for (i, item) in self.menu_items.iter_mut().enumerate() {
-            item.is_focused = i == new_idx;
-        }
-        self.update_focus();
+        self.set_focus(new_idx);
     }
 
     pub fn focus_next(&mut self) {
         if self.menu_items.is_empty() { return; }
-        self.mouse_focus_active = true; // Use explicit focus mode
-        let current = self.focused_index.unwrap_or(0);
+        self.mouse_focus_active = true;
+        let current = self.focused_index.unwrap_or(self.menu_items.len());
         let new_idx = (current + 1) % self.menu_items.len();
-        self.focused_index = Some(new_idx);
+        self.set_focus(new_idx);
+    }
+
+    /// Focus item by 1-based number (keyboard shortcut 1-9)
+    pub fn focus_by_number(&mut self, n: usize) -> bool {
+        if n == 0 || n > self.menu_items.len() { return false; }
+        self.mouse_focus_active = true;
+        self.set_focus(n - 1);
+        true
+    }
+
+    /// Common focus setter — updates is_focused flags, approach target, and snake
+    fn set_focus(&mut self, idx: usize) {
+        self.focused_index = Some(idx);
         for (i, item) in self.menu_items.iter_mut().enumerate() {
-            item.is_focused = i == new_idx;
+            item.is_focused = i == idx;
         }
-        self.update_focus();
+        let (tx, ty, dir) = self.get_approach_target_for_item(idx);
+        self.snake.approach_target = Some((tx, ty));
+        self.snake.force_idle_direction = dir;
+        self.snake.user_steering = false;
+        self.snake.user_steer_cooldown = 0.0;
+    }
+
+    /// Place snake immediately at the first item position (no animation),
+    /// used when entering a menu so the snake starts focused.
+    pub fn place_snake_at_first_item(&mut self) {
+        if self.menu_items.is_empty() { return; }
+
+        // Get the approach target for item 0 - this is where the snake actually idles.
+        // Placing the head HERE means dist=0 < stop_distance, so the snake won't move.
+        let (ax, ay, dir) = self.get_approach_target_for_item(0);
+        let idle_dir = dir.unwrap_or(2); // East by default
+
+        // Build body trailing left from the approach target
+        let mut body = Vec::new();
+        for i in 0..6_i32 {
+            let (bx, by) = match idle_dir {
+                0 => (ax, ay + i as f64),         // facing North → tail goes South
+                2 => (ax - i as f64, ay),          // facing East  → tail goes West
+                4 => (ax, ay - i as f64),          // facing South → tail goes North
+                6 => (ax + i as f64, ay),          // facing West  → tail goes East
+                _ => (ax - i as f64, ay),
+            };
+            body.push((bx, by));
+        }
+        self.snake.body = body;
+        self.snake.direction = idle_dir;
+        self.snake.is_dashing = false;
+        self.snake.is_approaching = false;
+        self.snake.user_steering = false;
+        self.snake.trail.clear();
+        self.mouse_focus_active = true;
+
+        // Set focus state directly (don't call set_focus which would re-set approach_target
+        // to the same value but potentially cause redundant work)
+        self.focused_index = Some(0);
+        for (i, item) in self.menu_items.iter_mut().enumerate() {
+            item.is_focused = i == 0;
+        }
+        self.snake.approach_target = Some((ax, ay));
+        self.snake.force_idle_direction = dir;
+        self.snake.user_steer_cooldown = 0.0;
     }
 
     fn update_focus(&mut self) {
         if self.snake.is_dashing {
-            return; // Don't change focus during dash
+            return;
         }
 
-        // If items are left-aligned (list mode), or mouse focus is active,
-        // we use explicit focus (focused_index) instead of snake direction.
         let is_list_mode = self.menu_items.first().map_or(false, |i| i.is_left_aligned);
 
-        if self.mouse_focus_active || is_list_mode || (!self.snake.user_steering && self.focused_index.is_some()) {
-            // Still update approach target to ensure snake heads there
+        // Mouse focus (hover/click/number key) is always highest priority: lock it.
+        if self.mouse_focus_active || is_list_mode {
             if let Some(idx) = self.focused_index {
                 let (tx, ty, dir) = self.get_approach_target_for_item(idx);
                 self.snake.approach_target = Some((tx, ty));
@@ -674,10 +835,23 @@ impl MenuUI {
             return;
         }
 
-        let head = self.snake.head();
+        // User is NOT actively steering (released keys) AND we already have a focus:
+        // keep it locked so the snake doesn't drift to another item while passing by.
+        if !self.snake.user_steering && self.focused_index.is_some() {
+            if let Some(idx) = self.focused_index {
+                let (tx, ty, dir) = self.get_approach_target_for_item(idx);
+                self.snake.approach_target = Some((tx, ty));
+                self.snake.force_idle_direction = dir;
+            }
+            return;
+        }
 
+        // User IS actively steering with arrow/WASD keys: scan for nearest item
+        // in the current steering direction and update focus.
+        if !self.snake.user_steering { return; }
+
+        let head = self.snake.head();
         let (sdx, sdy) = MenuSnake::direction_delta(self.snake.direction);
-        let _snake_angle = sdy.atan2(sdx);
 
         let mut best_index: Option<usize> = None;
         let mut best_score = f64::MAX;
@@ -690,17 +864,12 @@ impl MenuUI {
             let dy = closest_y - head.1;
             let dist = (dx * dx + dy * dy).sqrt();
 
-            if dist < 1.0 { continue; } // Too close, skip
+            if dist < 1.0 { continue; }
 
             let dot = dx * sdx + dy * sdy;
-            if dot <= 0.0 {
-                continue; // Ignore items behind or strictly perpendicular
-            }
+            if dot <= 0.0 { continue; }
 
             let perp = (dy * sdx - dx * sdy).abs();
-            
-            // Perpendicular distance is penalized heavily to enforce moving in a straight line.
-            // Forward distance is penalized lightly to pick the closest item in that line.
             let score = perp * 2.0 + dot * 0.5;
 
             if score < best_score {
@@ -709,26 +878,25 @@ impl MenuUI {
             }
         }
 
-        // Update focus
-        for (i, item) in self.menu_items.iter_mut().enumerate() {
-            item.is_focused = best_index == Some(i);
-        }
-        self.focused_index = best_index;
-
-        // Set approach target for the focused item
-        if let Some(idx) = self.focused_index {
+        // Only update focus if we found something
+        if let Some(idx) = best_index {
+            for (i, item) in self.menu_items.iter_mut().enumerate() {
+                item.is_focused = i == idx;
+            }
+            self.focused_index = Some(idx);
             let (tx, ty, dir) = self.get_approach_target_for_item(idx);
             self.snake.approach_target = Some((tx, ty));
             self.snake.force_idle_direction = dir;
-        } else {
+        } else if self.focused_index.is_none() {
             self.snake.approach_target = None;
         }
+        // If user is steering but no new item found in that direction,
+        // keep the current focus (don't clear it)
     }
 
     /// Focus an item by mouse screen position (terminal coordinates).
     /// Returns true if an item was focused.
     pub fn focus_by_screen_pos(&mut self, screen_x: u16, screen_y: u16) -> bool {
-        // Convert screen coords to grid coords using stored layout info
         let ga_x = self.layout_game_area_x;
         let ga_y = self.layout_game_area_y;
         let ga_w = self.layout_game_area_w;
@@ -737,11 +905,9 @@ impl MenuUI {
         if screen_x < ga_x || screen_y < ga_y { return false; }
         if screen_x >= ga_x + ga_w || screen_y >= ga_y + ga_h { return false; }
 
-        // Each grid cell = 2 terminal chars wide, 1 char tall
         let grid_x = self.layout_view_x + ((screen_x - ga_x) / 2) as i32;
         let grid_y = self.layout_view_y + (screen_y - ga_y) as i32;
 
-        // Find closest menu item to this grid position
         let mut best_index: Option<usize> = None;
         let mut best_dist = f64::MAX;
 
@@ -749,59 +915,39 @@ impl MenuUI {
             let item_world_x = item.x * self.grid_width;
             let item_world_y = item.y * self.grid_height;
 
-            let mut match_dist = f64::MAX;
-
-            // Check if mouse is near the label
-            let label_half_w = item.label.len() as f64 / 4.0; // In grid cells
-            let dx = (grid_x as f64 - item_world_x).abs() - label_half_w;
-            let dx = dx.max(0.0); // 0 if inside label width
-            let dy = (grid_y as f64 - item_world_y).abs();
-            let label_dist = (dx * dx + dy * dy).sqrt();
-
             // Check if mouse is inside the preview box (if any)
             let mut inside_box = false;
             if item.preview_bg.is_some() {
-                let box_w = 16.0 / 2.0; // 8 grid cells wide
-                let box_h = 8.0;        // 8 grid cells high
-                // Box center is roughly at `item_world_y - box_h/2 - 1.0`
+                let box_w = 16.0 / 2.0;
+                let box_h = 8.0;
                 let box_center_y = item_world_y - (box_h / 2.0) - 1.0;
                 let box_dy = (grid_y as f64 - box_center_y).abs() - box_h / 2.0;
                 let box_dx = (grid_x as f64 - item_world_x).abs() - box_w / 2.0;
-                
                 if box_dx <= 0.0 && box_dy <= 0.0 {
                     inside_box = true;
                 }
             }
 
-            if inside_box {
-                match_dist = 0.0;
-            } else if label_dist < 3.0 {
-                match_dist = label_dist;
-            }
+            let match_dist = if inside_box {
+                0.0
+            } else {
+                // Generous hit area: 5.0 grid cells from label edge
+                let label_half_w = item.label.len() as f64 / 4.0;
+                let dx = ((grid_x as f64 - item_world_x).abs() - label_half_w).max(0.0);
+                let dy = (grid_y as f64 - item_world_y).abs();
+                (dx * dx + dy * dy).sqrt()
+            };
 
-            if match_dist < best_dist {
+            // Accept if within 5 grid cells
+            if match_dist < 5.0 && match_dist < best_dist {
                 best_dist = match_dist;
                 best_index = Some(i);
             }
         }
 
         if let Some(idx) = best_index {
-            // Update focus
-            for (i, item) in self.menu_items.iter_mut().enumerate() {
-                item.is_focused = i == idx;
-            }
-            self.focused_index = Some(idx);
-
-            // Also steer snake toward this item
-            let (tx, ty, dir) = self.get_approach_target_for_item(idx);
-            self.snake.approach_target = Some((tx, ty));
-            self.snake.force_idle_direction = dir;
-            self.snake.user_steering = false;
-            self.snake.user_steer_cooldown = 0.0;
-
-            // Lock focus to mouse selection
             self.mouse_focus_active = true;
-
+            self.set_focus(idx);
             true
         } else {
             false
@@ -857,10 +1003,30 @@ impl MenuUI {
         if self.snake.is_dashing { return false; }
 
         if let Some(idx) = self.focused_index {
-            let item = &self.menu_items[idx];
+            let item = self.menu_items[idx].clone();
             let target_x = item.x * self.grid_width;
             let target_y = item.y * self.grid_height;
             let action = item.action;
+
+            // Dynamic breadcrumb tracking
+            match action {
+                MenuAction::BackToMainMenu => {
+                    self.breadcrumb_path.clear();
+                }
+                MenuAction::BackToSettings => {
+                    self.breadcrumb_path.pop();
+                }
+                MenuAction::ExitTerminal | MenuAction::BackgroundSelect(_) | MenuAction::BackgroundCustom |
+                MenuAction::StartExpedition | MenuAction::StartPuzzle1 | MenuAction::StartPuzzle2 | MenuAction::StartPuzzle3 |
+                MenuAction::BlockchainStart | MenuAction::BlockchainManageCreds | MenuAction::SettingsHelpManual => {
+                    // Non-menu-navigation actions don't affect breadcrumb
+                }
+                _ => {
+                    let clean_label = item.label.replace("[ ", "").replace(" ]", "");
+                    self.breadcrumb_path.push(clean_label);
+                }
+            }
+
             self.snake.start_dash(target_x, target_y, action);
             true
         } else {
@@ -886,6 +1052,8 @@ impl MenuUI {
         let ga_w: u16 = area_width;
         let ga_h: u16 = area_height.saturating_sub(status_h);
 
+        let size_changed = self.layout_game_area_w != ga_w || self.layout_game_area_h != ga_h;
+
         // Dynamically update virtual grid dimensions to match the actual terminal area!
         // This makes menu item positions (which use percentages) responsive to window resizing.
         let dynamic_w = (ga_w / 2).max(10) as f64; // Minimum 10 grid width
@@ -907,6 +1075,36 @@ impl MenuUI {
         self.layout_game_area_h = ga_h;
         self.layout_view_x = view_x;
         self.layout_view_y = view_y;
+
+        // When terminal size changes, recalculate item positions
+        if size_changed {
+            self.update_items_for_state();
+            // Restore or re-set focus
+            if let Some(idx) = self.focused_index {
+                if idx < self.menu_items.len() {
+                    // Snap snake to the approach target of the focused item
+                    // (where it actually idles) so it doesn't walk after resize
+                    let (ax, ay, dir) = self.get_approach_target_for_item(idx);
+                    let old_head_x = self.snake.body[0].0;
+                    let old_head_y = self.snake.body[0].1;
+                    for seg in self.snake.body.iter_mut() {
+                        seg.0 += ax - old_head_x;
+                        seg.1 += ay - old_head_y;
+                    }
+                    // Update focus state
+                    self.focused_index = Some(idx);
+                    for (i, item) in self.menu_items.iter_mut().enumerate() {
+                        item.is_focused = i == idx;
+                    }
+                    self.snake.approach_target = Some((ax, ay));
+                    self.snake.force_idle_direction = dir;
+                    self.snake.is_approaching = false;
+                }
+            } else {
+                // No focus yet: place snake at first item
+                self.place_snake_at_first_item();
+            }
+        }
     }
 
     /// Reset snake position (after returning from submenu)
@@ -1258,8 +1456,11 @@ fn render_snake_menu(frame: &mut Frame, area: Rect, ui: &MenuUI) {
         }
     }
 
-    // 6. Draw Logo on MainMenu
-    if matches!(ui.state, MenuState::MainMenu) {
+    // 6. Draw Logo and Breadcrumbs (not on BackgroundsMenu)
+    let start_x = area.x.saturating_add(2);
+    let start_y = area.y.saturating_add(1);
+
+    if !matches!(ui.state, MenuState::BackgroundsMenu) {
         let logo = [
             r#"  .,-::::: :::::::..    :::.  .::    .   .::::::         "#,
             r#",;;;'````' ;;;;``;;;;   ;;`;; ';;,  ;;  ;;;' ;;;         "#,
@@ -1274,15 +1475,45 @@ fn render_snake_menu(frame: &mut Frame, area: Rect, ui: &MenuUI) {
             r#"`88bo,__,o, 888   888o     888   "88o888oo,__ 888b "88bo,"#,
             r#"  "YUMMMMMP"MMM   YMMMb    MMM    YMM""""YUMMMMMMM   "W" "#,
         ];
-        
-        let start_x = area.x.saturating_add(2);
-        let start_y = area.y.saturating_add(1);
-        
+
         for (i, line) in logo.iter().enumerate() {
             let y = start_y + i as u16;
             if y < game_area.y + game_area.height {
                 buf.set_string(start_x, y, *line, Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD));
             }
+        }
+
+        if !ui.breadcrumb_path.is_empty() {
+            let breadcrumb_str = format!("> {}", ui.breadcrumb_path.join(" > "));
+            let bc_y = start_y + logo.len() as u16;
+            if bc_y < game_area.y + game_area.height {
+                buf.set_string(start_x + 2, bc_y, &breadcrumb_str, Style::default().fg(Color::DarkGray).add_modifier(Modifier::BOLD));
+            }
+        }
+    } else {
+        // BackgroundsMenu: show only breadcrumb, no logo
+        if !ui.breadcrumb_path.is_empty() {
+            let breadcrumb_str = format!("> {}", ui.breadcrumb_path.join(" > "));
+            if start_y < game_area.y + game_area.height {
+                buf.set_string(start_x + 2, start_y, &breadcrumb_str, Style::default().fg(Color::DarkGray).add_modifier(Modifier::BOLD));
+            }
+        }
+    }
+
+    // 6b. Draw number shortcuts below each item
+    for (num, item) in ui.menu_items.iter().enumerate() {
+        if num >= 9 { break; } // Only 1-9
+        let item_world_x = (item.x * grid_w as f64) as i32;
+        let item_world_y = (item.y * grid_h as f64) as i32;
+        let local_x = item_world_x - view_x;
+        let local_y = item_world_y - view_y + 1; // 1 row below item
+        if local_y < 0 || local_y >= view_h { continue; }
+        let screen_y_num = game_area.y + local_y as u16;
+        let screen_x_num = (game_area.x as i32 + local_x * 2) as u16;
+        if screen_y_num < game_area.y + game_area.height && (screen_x_num as i32) >= area.x as i32 {
+            let num_str = format!("{}", num + 1);
+            let num_color = if item.is_focused { Color::Yellow } else { Color::Rgb(60, 60, 80) };
+            buf.set_string(screen_x_num, screen_y_num, &num_str, Style::default().fg(num_color));
         }
     }
 
