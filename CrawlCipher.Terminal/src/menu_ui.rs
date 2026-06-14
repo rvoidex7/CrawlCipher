@@ -466,6 +466,27 @@ impl MenuUI {
         ui
     }
 
+    pub fn build_list_menu(actions: Vec<(&str, MenuAction)>, start_y: f64, y_step: f64) -> Vec<MenuItem> {
+        let mut items = vec![];
+        for (i, (label_text, action)) in actions.into_iter().enumerate() {
+            items.push(MenuItem {
+                label: format!("[ {} ]", label_text),
+                x: 0.65,
+                y: start_y + (i as f64) * y_step,
+                action,
+                is_focused: false,
+                preview_bg: None,
+                is_left_aligned: true,
+                group_max_len: 0,
+            });
+        }
+        let max_len = items.iter().map(|i| i.label.len()).max().unwrap_or(0);
+        for i in &mut items {
+            i.group_max_len = max_len;
+        }
+        items
+    }
+
     pub fn update_items_for_state(&mut self) {
         self.menu_items.clear();
         self.focused_index = None;
@@ -473,44 +494,27 @@ impl MenuUI {
 
         match self.state {
             MenuState::MainMenu => {
-                let y_step = 0.12;
-                let start_y = 0.35;
-                let mut items = vec![
-                    MenuItem { label: "[ BLOCKCHAIN PLAY ]".to_string(), x: 0.65, y: start_y, action: MenuAction::MenuBlockchainPlay, is_focused: false, preview_bg: None, is_left_aligned: true, group_max_len: 0 },
-                    MenuItem { label: "[ OFFLINE PLAY ]".to_string(), x: 0.65, y: start_y + y_step, action: MenuAction::MenuOfflinePlay, is_focused: false, preview_bg: None, is_left_aligned: true, group_max_len: 0 },
-                    MenuItem { label: "[ LAN / P2P PLAY ]".to_string(), x: 0.65, y: start_y + 2.0 * y_step, action: MenuAction::MenuLanP2PPlay, is_focused: false, preview_bg: None, is_left_aligned: true, group_max_len: 0 },
-                    MenuItem { label: "[ SETTINGS / HELP ]".to_string(), x: 0.65, y: start_y + 3.0 * y_step, action: MenuAction::MenuSettingsHelp, is_focused: false, preview_bg: None, is_left_aligned: true, group_max_len: 0 },
-                    MenuItem { label: "[ EXIT TERMINAL ]".to_string(), x: 0.65, y: start_y + 4.0 * y_step, action: MenuAction::ExitTerminal, is_focused: false, preview_bg: None, is_left_aligned: true, group_max_len: 0 },
-                ];
-                let max_len = items.iter().map(|i| i.label.len()).max().unwrap_or(0);
-                for i in &mut items {
-                    i.group_max_len = max_len;
-                }
-                self.menu_items = items;
+                self.menu_items = Self::build_list_menu(vec![
+                    ("BLOCKCHAIN PLAY", MenuAction::MenuBlockchainPlay),
+                    ("OFFLINE PLAY", MenuAction::MenuOfflinePlay),
+                    ("LAN / P2P PLAY", MenuAction::MenuLanP2PPlay),
+                    ("SETTINGS / HELP", MenuAction::MenuSettingsHelp),
+                    ("EXIT TERMINAL", MenuAction::ExitTerminal),
+                ], 0.35, 0.12);
             }
             MenuState::BlockchainMenu => {
-                let y_step = 0.15;
-                let start_y = 0.5 - y_step;
-                let mut items = vec![
-                    MenuItem { label: "[ START ]".to_string(), x: 0.65, y: start_y, action: MenuAction::BlockchainStart, is_focused: false, preview_bg: None, is_left_aligned: true, group_max_len: 0 },
-                    MenuItem { label: "[ MANAGE CREDENTIALS ]".to_string(), x: 0.65, y: start_y + y_step, action: MenuAction::BlockchainManageCreds, is_focused: false, preview_bg: None, is_left_aligned: true, group_max_len: 0 },
-                    MenuItem { label: "[ BACK ]".to_string(), x: 0.65, y: start_y + 2.0 * y_step, action: MenuAction::BackToMainMenu, is_focused: false, preview_bg: None, is_left_aligned: true, group_max_len: 0 },
-                ];
-                let max_len = items.iter().map(|i| i.label.len()).max().unwrap_or(0);
-                for i in &mut items { i.group_max_len = max_len; }
-                self.menu_items = items;
+                self.menu_items = Self::build_list_menu(vec![
+                    ("START", MenuAction::BlockchainStart),
+                    ("MANAGE CREDENTIALS", MenuAction::BlockchainManageCreds),
+                    ("BACK", MenuAction::BackToMainMenu),
+                ], 0.5 - 0.15, 0.15);
             }
             MenuState::SettingsHelpMenu => {
-                let y_step = 0.15;
-                let start_y = 0.5 - y_step;
-                let mut items = vec![
-                    MenuItem { label: "[ BACKGROUNDS ]".to_string(), x: 0.65, y: start_y, action: MenuAction::SettingsBackgrounds, is_focused: false, preview_bg: None, is_left_aligned: true, group_max_len: 0 },
-                    MenuItem { label: "[ HELP ]".to_string(), x: 0.65, y: start_y + y_step, action: MenuAction::SettingsHelpManual, is_focused: false, preview_bg: None, is_left_aligned: true, group_max_len: 0 },
-                    MenuItem { label: "[ BACK ]".to_string(), x: 0.65, y: start_y + 2.0 * y_step, action: MenuAction::BackToMainMenu, is_focused: false, preview_bg: None, is_left_aligned: true, group_max_len: 0 },
-                ];
-                let max_len = items.iter().map(|i| i.label.len()).max().unwrap_or(0);
-                for i in &mut items { i.group_max_len = max_len; }
-                self.menu_items = items;
+                self.menu_items = Self::build_list_menu(vec![
+                    ("BACKGROUNDS", MenuAction::SettingsBackgrounds),
+                    ("HELP", MenuAction::SettingsHelpManual),
+                    ("BACK", MenuAction::BackToMainMenu),
+                ], 0.5 - 0.15, 0.15);
             }
             MenuState::BackgroundsMenu => {
                 let mut items = Vec::new();
@@ -528,30 +532,7 @@ impl MenuUI {
                 all_labels.push(("[ CUSTOM FILE ]".to_string(), MenuAction::BackgroundCustom, None));
                 all_labels.push(("[ BACK ]".to_string(), MenuAction::BackToSettings, None));
 
-                let _n = all_labels.len();
-                let gw = self.grid_width;
-                let gh = self.grid_height;
-
-                // Logo occupies top-left: ~62 screen chars wide, ~15 screen rows tall
-                // Convert to normalized coordinates based on actual terminal size
-                let logo_right_norm = if gw > 1.0 { (62.0 / (gw * 2.0)).min(0.95) } else { 0.5 };
-                let logo_bottom_norm = if gh > 1.0 { (16.0 / gh).min(0.90) } else { 0.5 };
-
-                // Available free zones:
-                // Zone A (right strip): x in [logo_right_norm+margin .. 0.95], y in [0.05 .. 0.95]
-                // Zone B (bottom strip): x in [0.05 .. 0.95], y in [logo_bottom_norm+margin .. 0.95]
-                let margin = 0.03;
-                let zone_a_left = (logo_right_norm + margin).min(0.90);
-                let _zone_a_width = (0.95 - zone_a_left).max(0.0);
-                let zone_b_top = (logo_bottom_norm + margin).min(0.90);
-                let _zone_b_height = (0.95 - zone_b_top).max(0.0);
-
                 // BackgroundsMenu has NO logo — use full screen for slot placement.
-                // Logo is shown on other menus, so only those need logo exclusion.
-                // Here: logo exclusion zone = zero (no reserved area).
-                let logo_w_norm = 0.0_f64;
-                let logo_h_norm = 0.0_f64;
-
                 // Generate slots on a 4x4 coarse grid across the full screen
                 let grid_cols = 4_i32;
                 let grid_rows = 4_i32;
@@ -561,11 +542,6 @@ impl MenuUI {
                     for c in 0..grid_cols {
                         let cx = 0.1 + (0.8 / grid_cols as f64) * (c as f64 + 0.5);
                         let cy = 0.1 + (0.8 / grid_rows as f64) * (r as f64 + 0.5);
-
-                        // Skip if inside logo exclusion zone (none for BackgroundsMenu)
-                        if cx < logo_w_norm + 0.05 && cy < logo_h_norm + 0.05 {
-                            continue;
-                        }
                         valid_slots.push((cx, cy));
                     }
                 }
@@ -601,18 +577,13 @@ impl MenuUI {
                 self.menu_items = items;
             }
             MenuState::MissionSelect => {
-                let y_step = 0.15;
-                let start_y = 0.5 - 2.0 * y_step;
-                let mut items = vec![
-                    MenuItem { label: "[ EXPEDITION ]".to_string(), x: 0.65, y: start_y, action: MenuAction::StartExpedition, is_focused: false, preview_bg: None, is_left_aligned: true, group_max_len: 0 },
-                    MenuItem { label: "[ PUZZLE: THE NARROW PATH ]".to_string(), x: 0.65, y: start_y + y_step, action: MenuAction::StartPuzzle1, is_focused: false, preview_bg: None, is_left_aligned: true, group_max_len: 0 },
-                    MenuItem { label: "[ PUZZLE: LASER GATE ]".to_string(), x: 0.65, y: start_y + 2.0 * y_step, action: MenuAction::StartPuzzle2, is_focused: false, preview_bg: None, is_left_aligned: true, group_max_len: 0 },
-                    MenuItem { label: "[ PUZZLE: PRISM CHAMBER ]".to_string(), x: 0.65, y: start_y + 3.0 * y_step, action: MenuAction::StartPuzzle3, is_focused: false, preview_bg: None, is_left_aligned: true, group_max_len: 0 },
-                    MenuItem { label: "[ BACK ]".to_string(), x: 0.65, y: start_y + 4.0 * y_step, action: MenuAction::BackToMainMenu, is_focused: false, preview_bg: None, is_left_aligned: true, group_max_len: 0 },
-                ];
-                let max_len = items.iter().map(|i| i.label.len()).max().unwrap_or(0);
-                for i in &mut items { i.group_max_len = max_len; }
-                self.menu_items = items;
+                self.menu_items = Self::build_list_menu(vec![
+                    ("EXPEDITION", MenuAction::StartExpedition),
+                    ("PUZZLE: THE NARROW PATH", MenuAction::StartPuzzle1),
+                    ("PUZZLE: LASER GATE", MenuAction::StartPuzzle2),
+                    ("PUZZLE: PRISM CHAMBER", MenuAction::StartPuzzle3),
+                    ("BACK", MenuAction::BackToMainMenu),
+                ], 0.5 - 2.0 * 0.15, 0.15);
             }
             _ => {}
         }
@@ -642,7 +613,8 @@ impl MenuUI {
 
         // Pass 1: Find which y-values (rows) have ANY item colliding with the logo.
         // If one item in a row collides, the WHOLE row will be pushed.
-        let mut colliding_rows: Vec<u64> = Vec::new(); // y values (as bits) that collide
+        let mut colliding_rows: Vec<f64> = Vec::new(); // y values that collide
+        let epsilon = 0.001;
         for item in self.menu_items.iter() {
             let screen_y = item.y * gh;
             let center_x_screen = item.x * gw * 2.0;
@@ -650,16 +622,15 @@ impl MenuUI {
             let left_x_screen = center_x_screen - half_label;
 
             if screen_y < logo_bottom_rows && left_x_screen < logo_right_chars {
-                let y_bits = item.y.to_bits();
-                if !colliding_rows.contains(&y_bits) {
-                    colliding_rows.push(y_bits);
+                if !colliding_rows.iter().any(|&y| (y - item.y).abs() < epsilon) {
+                    colliding_rows.push(item.y);
                 }
             }
         }
 
         // Push ALL items in colliding rows below the logo
         for item in self.menu_items.iter_mut() {
-            if colliding_rows.contains(&item.y.to_bits()) {
+            if colliding_rows.iter().any(|&y| (y - item.y).abs() < epsilon) {
                 item.y = item.y.max(logo_bottom_norm);
             }
         }
@@ -1113,6 +1084,155 @@ impl MenuUI {
         self.last_tick = Instant::now();
         self.mouse_focus_active = false;
     }
+
+    pub fn handle_event(&mut self, ev: crossterm::event::Event, menu_input_handler: &mut crate::input::InputHandler) -> Option<bool> {
+        use crossterm::event::{Event, KeyCode, KeyEventKind, MouseEventKind};
+        
+        if matches!(self.state, MenuState::MainMenu | MenuState::BlockchainMenu | MenuState::SettingsHelpMenu | MenuState::BackgroundsMenu | MenuState::MissionSelect) {
+            if let Event::Mouse(mouse_ev) = &ev {
+                match mouse_ev.kind {
+                    MouseEventKind::Moved | MouseEventKind::Drag(_) => {
+                        self.focus_by_screen_pos(mouse_ev.column, mouse_ev.row);
+                    }
+                    MouseEventKind::Down(_) => {
+                        if self.focus_by_screen_pos(mouse_ev.column, mouse_ev.row) {
+                            self.trigger_dash();
+                        }
+                    }
+                    _ => {}
+                }
+                return Some(true);
+            }
+        }
+
+        if let Event::Key(key) = ev {
+            if key.kind != KeyEventKind::Press { return Some(true); }
+
+            match self.state {
+                MenuState::MainMenu
+                | MenuState::BlockchainMenu
+                | MenuState::SettingsHelpMenu
+                | MenuState::BackgroundsMenu
+                | MenuState::MissionSelect => {
+                    match key.code {
+                        KeyCode::Up | KeyCode::Char('w') | KeyCode::Char('W') => {
+                            if self.menu_items.first().map_or(false, |i| i.is_left_aligned) {
+                                self.focus_prev();
+                            } else {
+                                self.mouse_focus_active = false;
+                                menu_input_handler.handle_key_direction(0, -1);
+                            }
+                        }
+                        KeyCode::Down | KeyCode::Char('s') | KeyCode::Char('S') => {
+                            if self.menu_items.first().map_or(false, |i| i.is_left_aligned) {
+                                self.focus_next();
+                            } else {
+                                self.mouse_focus_active = false;
+                                menu_input_handler.handle_key_direction(0, 1);
+                            }
+                        }
+                        KeyCode::Left | KeyCode::Char('a') | KeyCode::Char('A') => {
+                            if !self.menu_items.first().map_or(false, |i| i.is_left_aligned) {
+                                self.mouse_focus_active = false;
+                                menu_input_handler.handle_key_direction(-1, 0);
+                            }
+                        }
+                        KeyCode::Right | KeyCode::Char('d') | KeyCode::Char('D') => {
+                            if !self.menu_items.first().map_or(false, |i| i.is_left_aligned) {
+                                self.mouse_focus_active = false;
+                                menu_input_handler.handle_key_direction(1, 0);
+                            }
+                        }
+                        KeyCode::Char('q') | KeyCode::Char('Q') => { self.mouse_focus_active = false; menu_input_handler.handle_key_direction(-1, -1); }
+                        KeyCode::Char('e') | KeyCode::Char('E') => { self.mouse_focus_active = false; menu_input_handler.handle_key_direction(1, -1); }
+                        KeyCode::Char('z') | KeyCode::Char('Z') => { self.mouse_focus_active = false; menu_input_handler.handle_key_direction(-1, 1); }
+                        KeyCode::Char('c') | KeyCode::Char('C') => { self.mouse_focus_active = false; menu_input_handler.handle_key_direction(1, 1); }
+                        KeyCode::Enter | KeyCode::Char('f') | KeyCode::Char('F') => {
+                            self.trigger_dash();
+                        }
+                        KeyCode::Char(c) if c.is_ascii_digit() && c != '0' => {
+                            let n = c as usize - '0' as usize;
+                            if self.focus_by_number(n) {
+                                self.trigger_dash();
+                            }
+                        }
+                        KeyCode::Esc => {
+                            if !matches!(self.state, MenuState::MainMenu) {
+                                self.state = MenuState::MainMenu;
+                                self.update_items_for_state();
+                                self.reset_snake();
+                            } else {
+                                return Some(false); // Signal to break app loop
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+                MenuState::CredentialsInput => {
+                    match key.code {
+                        KeyCode::Enter => {
+                            if self.cred_stage == 0 {
+                                if crate::stellar::validate_secret_key(&self.secret_key).is_some() {
+                                    self.cred_stage = 1;
+                                    self.error_msg = None;
+                                } else {
+                                    self.error_msg = Some("INVALID KEY FORMAT".to_string());
+                                }
+                            } else {
+                                self.state = MenuState::BlockchainMenu;
+                                self.update_items_for_state();
+                                self.reset_snake();
+                            }
+                        }
+                        KeyCode::Backspace => {
+                            if self.cred_stage == 0 { self.secret_key.pop(); }
+                            else { self.nickname.pop(); }
+                        }
+                        KeyCode::Tab => {
+                            let _ = webbrowser::open("https://laboratory.stellar.org/#account-creator?network=test");
+                        }
+                        KeyCode::Char(c) => {
+                            if self.cred_stage == 0 { self.secret_key.push(c); }
+                            else { self.nickname.push(c); }
+                        }
+                        KeyCode::Esc => { self.state = MenuState::BlockchainMenu; self.update_items_for_state(); self.reset_snake(); }
+                        _ => {}
+                    }
+                }
+                MenuState::CustomBackgroundInput => {
+                     match key.code {
+                        KeyCode::Enter => {
+                            let mut bg = crate::background::BackgroundPattern::new();
+                            if bg.load_from_file(&self.custom_bg_path).is_ok() {
+                                self.custom_bg_loaded = true;
+                                self.state = MenuState::MainMenu;
+                                self.reset_snake();
+                                self.reload_background();
+                            } else {
+                                self.error_msg = Some("FAILED TO LOAD FILE".to_string());
+                            }
+                        }
+                        KeyCode::Backspace => { self.custom_bg_path.pop(); }
+                        KeyCode::Char(c) => { self.custom_bg_path.push(c); }
+                        KeyCode::Esc => {
+                            self.state = MenuState::BackgroundsMenu;
+                            self.update_items_for_state();
+                            self.reset_snake();
+                        }
+                        _ => {}
+                     }
+                }
+                MenuState::HelpManual => {
+                    if key.code == KeyCode::Esc {
+                        self.state = MenuState::SettingsHelpMenu;
+                        self.update_items_for_state();
+                        self.reset_snake();
+                    }
+                }
+            }
+        }
+        Some(true)
+    }
 }
 
 // ===== Rendering =====
@@ -1150,13 +1270,8 @@ fn render_classic_bg(frame: &mut Frame, area: Rect) {
 // ===== Snake Menu Rendering =====
 
 fn render_snake_menu(frame: &mut Frame, area: Rect, ui: &MenuUI) {
-    let buf = frame.buffer_mut();
-
     let grid_w = ui.grid_width as i32;
     let grid_h = ui.grid_height as i32;
-
-    // Map grid to terminal area (2 chars per grid cell horizontally, 1 char vertically)
-    // Leave space for status (2 lines bottom), no title at top
     let status_h: u16 = 2;
 
     let game_area = Rect {
@@ -1166,27 +1281,37 @@ fn render_snake_menu(frame: &mut Frame, area: Rect, ui: &MenuUI) {
         height: area.height.saturating_sub(status_h),
     };
 
-    // Calculate visible grid range based on terminal size
     let view_w = (game_area.width / 2) as i32;
     let view_h = game_area.height as i32;
-
-    // Center camera on grid center (or snake head for immersion)
-    let _cam_x = (grid_w / 2).min(view_w / 2);
-    let _cam_y = (grid_h / 2).min(view_h / 2);
-
     let view_x = (grid_w / 2 - view_w / 2).max(0);
     let view_y = (grid_h / 2 - view_h / 2).max(0);
 
-    // 1. Render background pattern (matching in-game background)
+    render_menu_background(frame, game_area, ui, view_x, view_y, view_w, view_h, grid_w, grid_h);
+    render_menu_items(frame, game_area, ui, view_x, view_y, view_w, view_h, grid_w, grid_h);
+    render_menu_dash_trail(frame, game_area, ui, view_x, view_y, view_w, view_h);
+    render_menu_snake(frame, game_area, ui, view_x, view_y, view_w, view_h);
+    render_menu_gaze(frame, game_area, ui, view_x, view_y, view_w, view_h);
+    render_menu_logo(frame, game_area, ui);
+    render_menu_numbers(frame, game_area, ui, view_x, view_y, view_w, view_h, grid_w, grid_h);
+    
+    render_snake_menu_status(frame, Rect {
+        x: area.x,
+        y: area.y + area.height - status_h,
+        width: area.width,
+        height: status_h,
+    }, ui);
+}
+
+fn render_menu_background(frame: &mut Frame, game_area: Rect, ui: &MenuUI, view_x: i32, view_y: i32, view_w: i32, view_h: i32, grid_w: i32, grid_h: i32) {
+    let buf = frame.buffer_mut();
     for cy in 0..view_h.min(grid_h) {
         for cx in 0..view_w.min(grid_w) {
             let world_x = view_x + cx;
             let world_y = view_y + cy;
-
             let screen_x = game_area.x + (cx as u16) * 2;
             let screen_y = game_area.y + cy as u16;
 
-            if screen_x + 1 >= area.x + area.width || screen_y >= game_area.y + game_area.height {
+            if screen_x + 1 >= game_area.x + game_area.width || screen_y >= game_area.y + game_area.height {
                 continue;
             }
 
@@ -1207,35 +1332,27 @@ fn render_snake_menu(frame: &mut Frame, area: Rect, ui: &MenuUI) {
                 }
             };
 
-            let fg_color = if ui.bg_pattern.is_procedural {
-                Color::Rgb(0, 80, 0)
-            } else {
-                Color::Rgb(30, 30, 30)
-            };
-
+            let fg_color = if ui.bg_pattern.is_procedural { Color::Rgb(0, 80, 0) } else { Color::Rgb(30, 30, 30) };
             let style = Style::default().bg(bg_color).fg(fg_color);
             let text = format!("{}{}", bg_left_char, bg_right_char);
             buf.set_string(screen_x, screen_y, &text, style);
         }
     }
+}
 
-    // 2. Render menu items as text on grid
+fn render_menu_items(frame: &mut Frame, game_area: Rect, ui: &MenuUI, view_x: i32, view_y: i32, _view_w: i32, view_h: i32, grid_w: i32, grid_h: i32) {
+    let buf = frame.buffer_mut();
     for item in &ui.menu_items {
         let item_world_x = (item.x * grid_w as f64) as i32;
         let item_world_y = (item.y * grid_h as f64) as i32;
-
-        // Convert to screen coordinates
         let local_x = item_world_x - view_x;
         let local_y = item_world_y - view_y;
 
         if local_y < 0 || local_y >= view_h { continue; }
 
-        // Center the label on the item position
         let label_char_len = item.label.len() as i32;
-        let label_start_grid_x = local_x - label_char_len as i32 / 4; // Approximate centering (2 chars per grid cell)
-
+        let label_start_grid_x = local_x - label_char_len as i32 / 4;
         let screen_y = game_area.y + local_y as u16;
-        // Screen x: each grid cell = 2 terminal chars, but label is char-by-char
         let screen_x_start = game_area.x as i32 + label_start_grid_x * 2;
 
         if screen_y >= game_area.y + game_area.height { continue; }
@@ -1248,32 +1365,27 @@ fn render_snake_menu(frame: &mut Frame, area: Rect, ui: &MenuUI) {
 
         let style = Style::default().fg(fg_color).bg(bg_color).add_modifier(mods);
 
-        // Draw background preview box if applicable
         if let Some(bg_name) = &item.preview_bg {
             if let Some(bg_pat) = ui.bg_previews.get(bg_name) {
-                let box_w = 16; // 16 chars wide (8 pairs)
-                let box_h = 8;  // 8 rows high
+                let box_w = 16;
+                let box_h = 8;
                 let box_start_y = screen_y.saturating_sub(box_h as u16 + 1);
                 let box_start_x = screen_x_start + (item.label.len() as i32 / 2) - (box_w / 2);
-
                 let border_style = if item.is_focused { Style::default().fg(Color::Yellow) } else { Style::default().fg(Color::DarkGray) };
 
-                // Animated scroll offset if focused
                 let mut scroll_offset = 0;
                 if item.is_focused {
                     let t_ms = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as u64;
-                    // 8 rows per second = 1 row per 125ms
-                    scroll_offset = ((t_ms / 125) % 1000000) as i32; // Modulo to prevent i32 overflow
+                    scroll_offset = ((t_ms / 125) % 1000000) as i32;
                 }
 
                 for by in 0..box_h {
                     for bx in 0..(box_w/2) {
                         let draw_x = box_start_x + (bx * 2);
                         let draw_y = box_start_y + by as u16;
-                        if draw_x >= area.x as i32 && draw_x + 1 < (area.x + area.width) as i32 && draw_y >= game_area.y && draw_y < game_area.y + game_area.height {
+                        if draw_x >= game_area.x as i32 && draw_x + 1 < (game_area.x + game_area.width) as i32 && draw_y >= game_area.y && draw_y < game_area.y + game_area.height {
                             let px = item_world_x + bx;
                             let py = item_world_y + by - scroll_offset;
-                            
                             if bg_pat.width == 0 {
                                 let is_even = (px + py).rem_euclid(2) == 0;
                                 let bg_c = if is_even { Color::Rgb(20, 20, 40) } else { Color::Rgb(40, 40, 80) };
@@ -1293,74 +1405,55 @@ fn render_snake_menu(frame: &mut Frame, area: Rect, ui: &MenuUI) {
                 let top_y = box_start_y.saturating_sub(1);
                 let bottom_y = box_start_y + (box_h as u16);
 
-                // Top and bottom
                 for bx in 0..box_w {
                     let draw_x = box_start_x + bx;
-                    if draw_x >= area.x as i32 && draw_x < (area.x + area.width) as i32 {
-                        if top_y >= game_area.y {
-                            buf.set_string(draw_x as u16, top_y, "─", border_style);
-                        }
-                        if bottom_y < game_area.y + game_area.height {
-                            buf.set_string(draw_x as u16, bottom_y, "─", border_style);
-                        }
+                    if draw_x >= game_area.x as i32 && draw_x < (game_area.x + game_area.width) as i32 {
+                        if top_y >= game_area.y { buf.set_string(draw_x as u16, top_y, "─", border_style); }
+                        if bottom_y < game_area.y + game_area.height { buf.set_string(draw_x as u16, bottom_y, "─", border_style); }
                     }
                 }
                 
-                // Left and right
                 for by in 0..box_h {
                     let draw_y = box_start_y + by as u16;
                     if draw_y >= game_area.y && draw_y < game_area.y + game_area.height {
-                        if left_x >= area.x as i32 {
-                            buf.set_string(left_x as u16, draw_y, "│", border_style);
-                        }
-                        if right_x < (area.x + area.width) as i32 {
-                            buf.set_string(right_x as u16, draw_y, "│", border_style);
-                        }
+                        if left_x >= game_area.x as i32 { buf.set_string(left_x as u16, draw_y, "│", border_style); }
+                        if right_x < (game_area.x + game_area.width) as i32 { buf.set_string(right_x as u16, draw_y, "│", border_style); }
                     }
                 }
                 
-                // Corners
                 if top_y >= game_area.y {
-                    if left_x >= area.x as i32 { buf.set_string(left_x as u16, top_y, "┌", border_style); }
-                    if right_x < (area.x + area.width) as i32 { buf.set_string(right_x as u16, top_y, "┐", border_style); }
+                    if left_x >= game_area.x as i32 { buf.set_string(left_x as u16, top_y, "┌", border_style); }
+                    if right_x < (game_area.x + game_area.width) as i32 { buf.set_string(right_x as u16, top_y, "┐", border_style); }
                 }
                 if bottom_y < game_area.y + game_area.height {
-                    if left_x >= area.x as i32 { buf.set_string(left_x as u16, bottom_y, "└", border_style); }
-                    if right_x < (area.x + area.width) as i32 { buf.set_string(right_x as u16, bottom_y, "┘", border_style); }
+                    if left_x >= game_area.x as i32 { buf.set_string(left_x as u16, bottom_y, "└", border_style); }
+                    if right_x < (game_area.x + game_area.width) as i32 { buf.set_string(right_x as u16, bottom_y, "┘", border_style); }
                 }
             }
         }
 
-        // Draw the label character by character and the extra background below it
         for (i, ch) in item.label.chars().enumerate() {
             let sx = screen_x_start + i as i32;
-            if sx >= area.x as i32 && sx < (area.x + area.width) as i32 {
-                // Draw the text
+            if sx >= game_area.x as i32 && sx < (game_area.x + game_area.width) as i32 {
                 buf.set_string(sx as u16, screen_y, &ch.to_string(), style);
-                
-                // Draw the extended background 1 unit below
                 if screen_y + 1 < game_area.y + game_area.height {
                     buf.set_string(sx as u16, screen_y + 1, " ", Style::default().bg(bg_color));
                 }
             }
         }
 
-        // Draw focus indicator arrow if focused
         if item.is_focused {
             let arrow = "►";
             let arrow_x = screen_x_start - 2;
-            if arrow_x >= area.x as i32 && arrow_x < (area.x + area.width - 1) as i32 {
-                buf.set_string(
-                    arrow_x as u16,
-                    screen_y,
-                    arrow,
-                    Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
-                );
+            if arrow_x >= game_area.x as i32 && arrow_x < (game_area.x + game_area.width - 1) as i32 {
+                buf.set_string(arrow_x as u16, screen_y, arrow, Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD));
             }
         }
     }
+}
 
-    // 3. Render dash trail
+fn render_menu_dash_trail(frame: &mut Frame, game_area: Rect, ui: &MenuUI, view_x: i32, view_y: i32, view_w: i32, view_h: i32) {
+    let buf = frame.buffer_mut();
     for trail_point in &ui.snake.trail {
         let local_x = trail_point.0 as i32 - view_x;
         let local_y = trail_point.1 as i32 - view_y;
@@ -1370,7 +1463,7 @@ fn render_snake_menu(frame: &mut Frame, area: Rect, ui: &MenuUI) {
         let screen_x = game_area.x + (local_x as u16) * 2;
         let screen_y = game_area.y + local_y as u16;
 
-        if screen_x + 1 >= area.x + area.width || screen_y >= game_area.y + game_area.height {
+        if screen_x + 1 >= game_area.x + game_area.width || screen_y >= game_area.y + game_area.height {
             continue;
         }
 
@@ -1378,8 +1471,10 @@ fn render_snake_menu(frame: &mut Frame, area: Rect, ui: &MenuUI) {
         let trail_color = Color::Rgb(0, intensity / 2, intensity);
         buf.set_string(screen_x, screen_y, "░░", Style::default().fg(trail_color));
     }
+}
 
-    // 4. Render snake body
+fn render_menu_snake(frame: &mut Frame, game_area: Rect, ui: &MenuUI, view_x: i32, view_y: i32, view_w: i32, view_h: i32) {
+    let buf = frame.buffer_mut();
     let snake_head_color = Color::Rgb(0, 255, 220);
 
     for (i, seg) in ui.snake.body.iter().enumerate() {
@@ -1391,42 +1486,28 @@ fn render_snake_menu(frame: &mut Frame, area: Rect, ui: &MenuUI) {
         let screen_x = game_area.x + (local_x as u16) * 2;
         let screen_y = game_area.y + local_y as u16;
 
-        if screen_x + 1 >= area.x + area.width || screen_y >= game_area.y + game_area.height {
+        if screen_x + 1 >= game_area.x + game_area.width || screen_y >= game_area.y + game_area.height {
             continue;
         }
 
         let (symbol, color) = if i == 0 {
-            // Head - direction-dependent symbol
             let head_sym = match ui.snake.direction {
-                0 => "▲▲", // N
-                1 => "▶▲", // NE
-                2 => "▶▶", // E
-                3 => "▶▼", // SE
-                4 => "▼▼", // S
-                5 => "◀▼", // SW
-                6 => "◀◀", // W
-                7 => "◀▲", // NW
-                _ => "██",
+                0 => "▲▲", 1 => "▶▲", 2 => "▶▶", 3 => "▶▼", 4 => "▼▼", 5 => "◀▼", 6 => "◀◀", 7 => "◀▲", _ => "██",
             };
-
-            if ui.snake.is_dashing {
-                (head_sym, Color::Rgb(255, 255, 100)) // Bright yellow during dash
-            } else {
-                (head_sym, snake_head_color)
-            }
+            if ui.snake.is_dashing { (head_sym, Color::Rgb(255, 255, 100)) } else { (head_sym, snake_head_color) }
         } else {
-            // Body - gradient fade
             let fade = 1.0 - (i as f64 / ui.snake.body.len() as f64) * 0.6;
             let r = (0.0 * fade) as u8;
             let g = (200.0 * fade) as u8;
             let b = (160.0 * fade) as u8;
             ("██", Color::Rgb(r, g, b))
         };
-
         buf.set_string(screen_x, screen_y, symbol, Style::default().fg(color));
     }
+}
 
-    // 5. Render gaze line (dotted line from head in direction)
+fn render_menu_gaze(frame: &mut Frame, game_area: Rect, ui: &MenuUI, view_x: i32, view_y: i32, view_w: i32, view_h: i32) {
+    let buf = frame.buffer_mut();
     if !ui.snake.is_dashing {
         let (dx, dy) = MenuSnake::direction_delta(ui.snake.direction);
         let head = ui.snake.head();
@@ -1441,24 +1522,22 @@ fn render_snake_menu(frame: &mut Frame, area: Rect, ui: &MenuUI) {
             let screen_x = game_area.x + (local_x as u16) * 2;
             let screen_y = game_area.y + local_y as u16;
 
-            if screen_x + 1 >= area.x + area.width || screen_y >= game_area.y + game_area.height {
+            if screen_x + 1 >= game_area.x + game_area.width || screen_y >= game_area.y + game_area.height {
                 continue;
             }
 
             let fade = 1.0 - (step as f64 / 4.0);
             let intensity = (fade * 80.0) as u8;
-            let gaze_color = if ui.focused_index.is_some() {
-                Color::Rgb(intensity, intensity + 40, intensity + 60) // Cyan-ish when targeting
-            } else {
-                Color::Rgb(intensity / 2, intensity / 2, intensity / 2) // Gray when no target
-            };
+            let gaze_color = if ui.focused_index.is_some() { Color::Rgb(intensity, intensity + 40, intensity + 60) } else { Color::Rgb(intensity / 2, intensity / 2, intensity / 2) };
             buf.set_string(screen_x, screen_y, "··", Style::default().fg(gaze_color));
         }
     }
+}
 
-    // 6. Draw Logo and Breadcrumbs (not on BackgroundsMenu)
-    let start_x = area.x.saturating_add(2);
-    let start_y = area.y.saturating_add(1);
+fn render_menu_logo(frame: &mut Frame, game_area: Rect, ui: &MenuUI) {
+    let buf = frame.buffer_mut();
+    let start_x = game_area.x.saturating_add(2);
+    let start_y = game_area.y.saturating_add(1);
 
     if !matches!(ui.state, MenuState::BackgroundsMenu) {
         let logo = [
@@ -1491,7 +1570,6 @@ fn render_snake_menu(frame: &mut Frame, area: Rect, ui: &MenuUI) {
             }
         }
     } else {
-        // BackgroundsMenu: show only breadcrumb, no logo
         if !ui.breadcrumb_path.is_empty() {
             let breadcrumb_str = format!("> {}", ui.breadcrumb_path.join(" > "));
             if start_y < game_area.y + game_area.height {
@@ -1499,31 +1577,25 @@ fn render_snake_menu(frame: &mut Frame, area: Rect, ui: &MenuUI) {
             }
         }
     }
+}
 
-    // 6b. Draw number shortcuts below each item
+fn render_menu_numbers(frame: &mut Frame, game_area: Rect, ui: &MenuUI, view_x: i32, view_y: i32, _view_w: i32, view_h: i32, grid_w: i32, grid_h: i32) {
+    let buf = frame.buffer_mut();
     for (num, item) in ui.menu_items.iter().enumerate() {
-        if num >= 9 { break; } // Only 1-9
+        if num >= 9 { break; }
         let item_world_x = (item.x * grid_w as f64) as i32;
         let item_world_y = (item.y * grid_h as f64) as i32;
         let local_x = item_world_x - view_x;
-        let local_y = item_world_y - view_y + 1; // 1 row below item
+        let local_y = item_world_y - view_y + 1;
         if local_y < 0 || local_y >= view_h { continue; }
         let screen_y_num = game_area.y + local_y as u16;
         let screen_x_num = (game_area.x as i32 + local_x * 2) as u16;
-        if screen_y_num < game_area.y + game_area.height && (screen_x_num as i32) >= area.x as i32 {
+        if screen_y_num < game_area.y + game_area.height && (screen_x_num as i32) >= game_area.x as i32 {
             let num_str = format!("{}", num + 1);
             let num_color = if item.is_focused { Color::Yellow } else { Color::Rgb(60, 60, 80) };
             buf.set_string(screen_x_num, screen_y_num, &num_str, Style::default().fg(num_color));
         }
     }
-
-    // 7. Render status bar at bottom
-    render_snake_menu_status(frame, Rect {
-        x: area.x,
-        y: area.y + area.height - status_h,
-        width: area.width,
-        height: status_h,
-    }, ui);
 }
 
 fn render_snake_menu_status(frame: &mut Frame, area: Rect, ui: &MenuUI) {

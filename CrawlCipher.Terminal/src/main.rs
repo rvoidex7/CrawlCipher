@@ -16,7 +16,7 @@ use background::BackgroundPattern;
 use anyhow::Result;
 use clap::Parser;
 use crossterm::{
-    event::{self, Event, KeyCode, KeyEvent, KeyModifiers, KeyEventKind, MouseEventKind, EnableMouseCapture, DisableMouseCapture},
+    event::{self, Event, KeyCode, KeyEvent, KeyModifiers, KeyEventKind, EnableMouseCapture, DisableMouseCapture},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
@@ -293,163 +293,10 @@ async fn main() -> Result<()> {
             if event::poll(timeout)? {
                 // Drain all available events
                 while event::poll(Duration::from_millis(0))? {
-                let ev = event::read()?;
-
-                // Handle mouse events for MainMenu
-                if matches!(menu.state, MenuState::MainMenu | MenuState::BlockchainMenu | MenuState::SettingsHelpMenu | MenuState::BackgroundsMenu | MenuState::MissionSelect) {
-                    if let Event::Mouse(mouse_ev) = &ev {
-                        match mouse_ev.kind {
-                            MouseEventKind::Moved | MouseEventKind::Drag(_) => {
-                                // Mouse hover: focus nearest item
-                                menu.focus_by_screen_pos(mouse_ev.column, mouse_ev.row);
-                            }
-                            MouseEventKind::Down(_) => {
-                                // Mouse click: focus + trigger dash
-                                if menu.focus_by_screen_pos(mouse_ev.column, mouse_ev.row) {
-                                    menu.trigger_dash();
-                                }
-                            }
-                            _ => {}
-                        }
-                        continue;
+                    let ev = event::read()?;
+                    if menu.handle_event(ev, &mut menu_input_handler) == Some(false) {
+                        break 'app_loop;
                     }
-                }
-
-                if let Event::Key(key) = ev {
-                    if key.kind != KeyEventKind::Press { continue; }
-
-                    match menu.state {
-                        MenuState::MainMenu
-                        | MenuState::BlockchainMenu
-                        | MenuState::SettingsHelpMenu
-                        | MenuState::BackgroundsMenu
-                        | MenuState::MissionSelect => {
-                            match key.code {
-                                // Arrow keys & WASD: steer snake and allow focus re-scan
-                                KeyCode::Up | KeyCode::Char('w') | KeyCode::Char('W') => {
-                                    if menu.menu_items.first().map_or(false, |i| i.is_left_aligned) {
-                                        menu.focus_prev();
-                                    } else {
-                                        menu.mouse_focus_active = false; // Allow re-scan
-                                        menu_input_handler.handle_key_direction(0, -1);
-                                    }
-                                }
-                                KeyCode::Down | KeyCode::Char('s') | KeyCode::Char('S') => {
-                                    if menu.menu_items.first().map_or(false, |i| i.is_left_aligned) {
-                                        menu.focus_next();
-                                    } else {
-                                        menu.mouse_focus_active = false; // Allow re-scan
-                                        menu_input_handler.handle_key_direction(0, 1);
-                                    }
-                                }
-                                KeyCode::Left | KeyCode::Char('a') | KeyCode::Char('A') => {
-                                    if !menu.menu_items.first().map_or(false, |i| i.is_left_aligned) {
-                                        menu.mouse_focus_active = false; // Allow re-scan
-                                        menu_input_handler.handle_key_direction(-1, 0);
-                                    }
-                                }
-                                KeyCode::Right | KeyCode::Char('d') | KeyCode::Char('D') => {
-                                    if !menu.menu_items.first().map_or(false, |i| i.is_left_aligned) {
-                                        menu.mouse_focus_active = false; // Allow re-scan
-                                        menu_input_handler.handle_key_direction(1, 0);
-                                    }
-                                }
-                                // Diagonal shortcuts
-                                KeyCode::Char('q') | KeyCode::Char('Q') => { menu.mouse_focus_active = false; menu_input_handler.handle_key_direction(-1, -1); }
-                                KeyCode::Char('e') | KeyCode::Char('E') => { menu.mouse_focus_active = false; menu_input_handler.handle_key_direction(1, -1); }
-                                KeyCode::Char('z') | KeyCode::Char('Z') => { menu.mouse_focus_active = false; menu_input_handler.handle_key_direction(-1, 1); }
-                                KeyCode::Char('c') | KeyCode::Char('C') => { menu.mouse_focus_active = false; menu_input_handler.handle_key_direction(1, 1); }
-                                // Dash select (Enter or F)
-                                KeyCode::Enter | KeyCode::Char('f') | KeyCode::Char('F') => {
-                                    menu.trigger_dash();
-                                }
-                                // Number shortcuts 1-9: instant select without dash animation
-                                KeyCode::Char(c) if c.is_ascii_digit() && c != '0' => {
-                                    let n = c as usize - '0' as usize;
-                                    if menu.focus_by_number(n) {
-                                        menu.trigger_dash();
-                                    }
-                                }
-                                KeyCode::Esc => {
-                                    if !matches!(menu.state, MenuState::MainMenu) {
-                                        menu.state = MenuState::MainMenu;
-                                        menu.update_items_for_state();
-                                        menu.reset_snake();
-                                    } else {
-                                        break 'app_loop;
-                                    }
-                                }
-                                _ => {}
-                            }
-                        }
-                        MenuState::CredentialsInput => {
-                            match key.code {
-                                KeyCode::Enter => {
-                                    if menu.cred_stage == 0 {
-                                        // Validate Key
-                                        if stellar::validate_secret_key(&menu.secret_key).is_some() {
-                                            menu.cred_stage = 1; // Next: Nickname
-                                            menu.error_msg = None;
-                                        } else {
-                                            menu.error_msg = Some("INVALID KEY FORMAT".to_string());
-                                        }
-                                    } else {
-                                        // Complete
-                                        menu.state = MenuState::BlockchainMenu;
-                                        menu.update_items_for_state();
-                                        menu.reset_snake();
-                                    }
-                            }
-                            KeyCode::Backspace => {
-                                if menu.cred_stage == 0 { menu.secret_key.pop(); }
-                                else { menu.nickname.pop(); }
-                            }
-                            KeyCode::Tab => {
-                                let _ = webbrowser::open("https://laboratory.stellar.org/#account-creator?network=test");
-                            }
-                            KeyCode::Char(c) => {
-                                if menu.cred_stage == 0 { menu.secret_key.push(c); }
-                                else { menu.nickname.push(c); }
-                            }
-                            KeyCode::Esc => { menu.state = MenuState::BlockchainMenu; menu.update_items_for_state(); menu.reset_snake(); }
-                            _ => {}
-                        }
-                    }
-
-                    MenuState::CustomBackgroundInput => {
-                         match key.code {
-                            KeyCode::Enter => {
-                                // Try to load
-                                let mut bg = BackgroundPattern::new();
-                                if bg.load_from_file(&menu.custom_bg_path).is_ok() {
-                                    menu.custom_bg_loaded = true;
-                                    menu.state = MenuState::MainMenu;
-                                    menu.reset_snake();
-                                    menu.reload_background();
-                                } else {
-                                    menu.error_msg = Some("FAILED TO LOAD FILE".to_string());
-                                }
-                            }
-                            KeyCode::Backspace => { menu.custom_bg_path.pop(); }
-                            KeyCode::Char(c) => { menu.custom_bg_path.push(c); }
-                            KeyCode::Esc => {
-                                menu.state = MenuState::BackgroundsMenu;
-                                menu.update_items_for_state();
-                                menu.reset_snake();
-                            }
-                            _ => {}
-                         }
-                    }
-                    MenuState::HelpManual => {
-                        if key.code == KeyCode::Esc {
-                            menu.state = MenuState::SettingsHelpMenu;
-                            menu.update_items_for_state();
-                            menu.reset_snake();
-                        }
-                    }
-
-            }
-        } // closes if let Event::Key
                 } // end while (draining events)
             } // end if event::poll
         } // end loop waiting for frame_duration
