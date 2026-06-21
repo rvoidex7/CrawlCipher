@@ -13,7 +13,7 @@ if errorlevel 1 (
 )
 
 echo [1/2] Building Terminal Frontend...
-cd CrawlCipher.Terminal
+cd CrawlCipher.Tui
 cargo build --release
 if errorlevel 1 (
     echo ERROR: Failed to build Terminal Frontend!
@@ -30,7 +30,7 @@ REM Create output directory
 if not exist "output\" mkdir output
 
 REM Copy Rust executable
-copy "CrawlCipher.Terminal\target\release\crawlcipher.exe" "output\crawlcipher.exe"
+copy "CrawlCipher.Tui\target\release\crawlcipher.exe" "output\crawlcipher.exe"
 
 REM Check and copy pre-compiled Proprietary library
 if exist "core-binaries\CrawlCipher.Core.dll" (

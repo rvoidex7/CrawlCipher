@@ -9,17 +9,17 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thanks for suggesting a new feature! **Note:** Features outside bootcamp MVP scope will be considered for v2.0.
+        Thanks for suggesting a new feature to CrawlCipher! Please fill out the form below.
 
   - type: dropdown
     id: priority
     attributes:
       label: Priority
-      description: Is this feature critical for MVP?
+      description: How critical is this feature request?
       options:
-        - MVP Critical (Required for bootcamp)
-        - V2 Enhancement (Post-bootcamp)
-        - Nice to Have
+        - Critical / High Priority
+        - Medium Priority
+        - Low Priority / Nice to Have
     validations:
       required: true
 
@@ -48,7 +48,7 @@ body:
       multiple: true
       options:
         - C# Game Engine
-        - Rust Terminal UI
+        - Rust TUI
         - Stellar Integration
         - Gameplay Mechanics
         - Inventory System
@@ -63,12 +63,10 @@ body:
       description: Are there other ways to solve this?
 
   - type: checkboxes
-    id: scope
+    id: confirmation
     attributes:
-      label: Scope Check
-      description: Please confirm
+      label: Confirmation
+      description: Please check the following
       options:
-        - label: I have read BOOTCAMP_MVP_SCOPE.md
-          required: true
-        - label: This feature fits current scope (or I understand it may be deferred to v2)
+        - label: I have searched existing issues to ensure this feature hasn't been requested already.
           required: true

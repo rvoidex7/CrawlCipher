@@ -24,17 +24,17 @@ jobs:
         components: clippy, rustfmt
 
     - name: Check formatting
-      working-directory: CrawlCipher.Terminal
+      working-directory: CrawlCipher.Tui
       run: cargo fmt -- --check || true # Soft fail
 
     - name: Clippy (Linting)
-      working-directory: CrawlCipher.Terminal
+      working-directory: CrawlCipher.Tui
       run: cargo clippy --release -- -D warnings || true # Soft fail for now
 
     - name: Build Terminal UI (Release)
-      working-directory: CrawlCipher.Terminal
+      working-directory: CrawlCipher.Tui
       run: cargo build --release
 
     - name: Run Tests
-      working-directory: CrawlCipher.Terminal
+      working-directory: CrawlCipher.Tui
       run: cargo test --release

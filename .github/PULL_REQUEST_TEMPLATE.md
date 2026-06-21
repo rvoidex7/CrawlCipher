@@ -4,7 +4,7 @@
 ## Type of Change
 <!-- Check relevant items -->
 - [ ] 🐛 Bug fix
-- [ ] ✨ New feature (MVP scope)
+- [ ] ✨ New feature
 - [ ] 🎨 Refactoring
 - [ ] 📝 Documentation
 - [ ] ⚡ Performance improvement
@@ -14,7 +14,7 @@
 ## Components Affected
 <!-- Check relevant items -->
 - [ ] C# Game Engine (CrawlCipher.Core)
-- [ ] Rust Terminal UI (CrawlCipher.Terminal)
+- [ ] Rust TUI (CrawlCipher.Tui)
 - [ ] FFI Bridge
 - [ ] Stellar Integration
 - [ ] Documentation
@@ -30,11 +30,6 @@
 <!-- List test scenarios -->
 1. 
 2. 
-
-## Implementation Plan
-<!-- Which task does this complete? -->
-- Related Phase: <!-- Phase 1-7 -->
-- Related Task: <!-- Task ID from IMPLEMENTATION_PLAN.md -->
 
 ## Checklist
 - [ ] Code follows Rust/C# style guidelines

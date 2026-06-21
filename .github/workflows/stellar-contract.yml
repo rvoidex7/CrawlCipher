@@ -21,6 +21,10 @@ jobs:
       with:
         targets: wasm32-unknown-unknown
 
+    - name: Run Contract Tests
+      working-directory: smart-contracts/session-lock
+      run: cargo test
+
     - name: Build Contract (WASM)
       working-directory: smart-contracts/session-lock
       run: cargo build --target wasm32-unknown-unknown --release

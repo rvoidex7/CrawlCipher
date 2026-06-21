@@ -16,7 +16,7 @@ if ! command -v cargo &> /dev/null; then
 else
 
     echo "[1/2] Building Terminal Frontend..."
-    cd CrawlCipher.Terminal
+    cd CrawlCipher.Tui
     cargo build --release
     cd ..
     echo "Successfully built terminal frontend."
@@ -28,7 +28,7 @@ else
     mkdir -p output
 
     # Copy Rust executable
-    cp CrawlCipher.Terminal/target/release/crawlcipher output/crawlcipher
+    cp CrawlCipher.Tui/target/release/crawlcipher output/crawlcipher
 
     # Check if pre-compiled core binary exists
     if [ -f "core-binaries/libCrawlCipher.Core.so" ]; then

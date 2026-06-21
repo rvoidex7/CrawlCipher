@@ -17,7 +17,7 @@ body:
       label: Which component has the issue?
       options:
         - C# Game Engine (CrawlCipher.Core)
-        - Rust Terminal UI (CrawlCipher.Terminal)
+        - Rust TUI (CrawlCipher.Tui)
         - FFI Bridge (C#/Rust interop)
         - Stellar Integration
         - Build Process

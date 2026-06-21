@@ -1,5 +1,10 @@
 # CrawlCipher
 
+[![CrawlCipher Release](https://img.shields.io/github/v/release/rvoidex7/CrawlCipher?color=blue&label=CrawlCipher)](https://github.com/rvoidex7/CrawlCipher/releases)
+[![Core Version](https://img.shields.io/github/v/tag/rvoidex7/CrawlCipher?filter=core-v%2A&label=Core&color=orange)](https://github.com/rvoidex7/CrawlCipher/tags)
+[![TUI Version](https://img.shields.io/github/v/tag/rvoidex7/CrawlCipher?filter=tui-v%2A&label=TUI&color=red)](https://github.com/rvoidex7/CrawlCipher/tags)
+[![Contract Version](https://img.shields.io/github/v/tag/rvoidex7/CrawlCipher?filter=contract-v%2A&label=Contract&color=green)](https://github.com/rvoidex7/CrawlCipher/tags)
+
 A full-stack, terminal-based dApp demonstrating **deterministic state hashing**, **cryptographic fairness**, and **Soroban smart contract integration** on the Stellar blockchain.
 
 The primary focus of this project is resolving trust and manipulation issues in decentralized interactive systems through cryptographic proofs.
@@ -79,7 +84,7 @@ User statistics (Lifetime Kills, Max Length, Sessions Played) are written direct
 
 ```
 CrawlCipher/
-├── CrawlCipher.Terminal/     # Rust TUI frontend (ratatui)
+├── CrawlCipher.Tui/          # Rust TUI frontend (ratatui)
 ├── smart-contracts/
 │   └── session-lock/         # Soroban smart contract (Rust/WASM)
 │       └── src/lib.rs        # lock_session / unlock_session / get_locked_assets
@@ -142,9 +147,28 @@ stellar contract invoke \
 
 ---
 
+## Versioning & Git Tagging System
+
+CrawlCipher uses a dual-layer versioning scheme to support both end-users and developers working on specific components.
+
+### 1. Release Version (For Players/End-Users)
+Players can download fully compiled, ready-to-run releases from the **[Releases](https://github.com/rvoidex7/CrawlCipher/releases)** page.
+*   Release versions follow standard SemVer format (e.g., `vX.Y.Z`).
+*   The current base release version is **`v0.2.0`**.
+
+### 2. Developer Tags (For Component-Level Versioning)
+Developers working on individual subsystems can track and version components independently. Each component has its own SemVer tags prefixed by the component name:
+*   **TUI Frontend (`CrawlCipher.Tui`):** Tags follow the format `tui-vX.Y.Z` (e.g., `tui-v0.2.0`).
+*   **Core Engine (`CrawlCipher.Core`):** Tags follow the format `core-vX.Y.Z` (e.g., `core-v0.2.0`).
+*   **Smart Contracts (`session-lock`):** Tags follow the format `contract-vX.Y.Z` (e.g., `contract-v0.2.0`).
+
+Only components with code changes will have their version bumped in a subsequent tag.
+
+---
+
 ## License
 
-- The Rust Terminal (Frontend) and Soroban Smart Contracts are licensed under the **Apache License 2.0**.
+- The Rust TUI (Frontend) and Soroban Smart Contracts are licensed under the **Apache License 2.0**.
 - The Pre-compiled Native Engine binaries (`core-binaries/`) are **Proprietary and All Rights Reserved**.
 
 See the `LICENSE` file for details.
