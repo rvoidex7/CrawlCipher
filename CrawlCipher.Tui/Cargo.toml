@@ -3,7 +3,7 @@
 
 [package]
 name = "crawlcipher-tui"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2021"
 authors = ["crawlcipher Developer"]
 description = "crawlcipher TUI - Rust terminal user interface for crawlcipher game"

@@ -1016,7 +1016,7 @@ impl MenuUI {
 
     /// Update layout info for mouse coordinate mapping. Call with terminal size each frame.
     pub fn update_layout(&mut self, area_width: u16, area_height: u16) {
-        let status_h: u16 = 2;
+        let status_h: u16 = 1;
 
         let ga_x: u16 = 0;
         let ga_y: u16 = 0; // Removed title height
@@ -1272,7 +1272,7 @@ fn render_classic_bg(frame: &mut Frame, area: Rect) {
 fn render_snake_menu(frame: &mut Frame, area: Rect, ui: &MenuUI) {
     let grid_w = ui.grid_width as i32;
     let grid_h = ui.grid_height as i32;
-    let status_h: u16 = 2;
+    let status_h: u16 = 1;
 
     let game_area = Rect {
         x: area.x,
@@ -1599,14 +1599,6 @@ fn render_menu_numbers(frame: &mut Frame, game_area: Rect, ui: &MenuUI, view_x: 
 }
 
 fn render_snake_menu_status(frame: &mut Frame, area: Rect, ui: &MenuUI) {
-    let bg_name = if ui.custom_bg_loaded {
-        "CUSTOM FILE"
-    } else if ui.selected_bg_index < ui.embedded_bgs.len() {
-        &ui.embedded_bgs[ui.selected_bg_index]
-    } else {
-        "NONE"
-    };
-
     let pilot_info = if !ui.secret_key.is_empty() {
         format!("PILOT: {}", ui.nickname.to_uppercase())
     } else {
@@ -1622,7 +1614,7 @@ fn render_snake_menu_status(frame: &mut Frame, area: Rect, ui: &MenuUI) {
     };
 
     let left = Span::styled(
-        format!(" {} | BG: {} ", pilot_info, bg_name),
+        format!(" V{} | {} ", env!("CARGO_PKG_VERSION"), pilot_info),
         Style::default().fg(pilot_color).bg(Color::Rgb(10, 10, 20)),
     );
 
@@ -1732,13 +1724,19 @@ fn render_custom_bg_input(frame: &mut Frame, area: Rect, ui: &MenuUI) {
 
 
 fn render_manual(frame: &mut Frame, area: Rect) {
-    let area = centered_rect(70, 80, area);
+    let area = centered_rect(70, 85, area);
     let block = Block::default()
         .title(" [ TERMINAL MANUAL ] ")
         .borders(Borders::ALL)
         .style(Style::default().fg(Color::Cyan));
 
     let text = vec![
+        Line::from(Span::styled("SYSTEM VERSION INFORMATION", Style::default().add_modifier(Modifier::BOLD))),
+        Line::from(format!("  CrawlCipher Release  : V{}", env!("CARGO_PKG_VERSION"))),
+        Line::from(format!("  TUI Module           : tui-v{}", env!("CARGO_PKG_VERSION"))),
+        Line::from(format!("  Core Engine          : core-v{}", env!("CORE_VERSION"))),
+        Line::from(format!("  Smart Contract       : contract-v{}", env!("CONTRACT_VERSION"))),
+        Line::from(""),
         Line::from(Span::styled("CONTROLS", Style::default().add_modifier(Modifier::BOLD))),
         Line::from("  W, A, S, D / Arrows  : Move"),
         Line::from("  Release Keys         : Idle (Regenerates Energy)"),
