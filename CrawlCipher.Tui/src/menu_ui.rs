@@ -546,11 +546,10 @@ impl MenuUI {
                     }
                 }
 
-                // Scatter: sort by a mixed key to avoid strict grid look
                 valid_slots.sort_by(|a, b| {
                     let a_val = (a.0 * 13.0 + a.1 * 17.0) % 1.0;
                     let b_val = (b.0 * 13.0 + b.1 * 17.0) % 1.0;
-                    a_val.partial_cmp(&b_val).unwrap()
+                    a_val.partial_cmp(&b_val).unwrap_or(std::cmp::Ordering::Equal)
                 });
 
                 // Assign items to slots with tiny jitter
@@ -1375,7 +1374,10 @@ fn render_menu_items(frame: &mut Frame, game_area: Rect, ui: &MenuUI, view_x: i3
 
                 let mut scroll_offset = 0;
                 if item.is_focused {
-                    let t_ms = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as u64;
+                    let t_ms = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap_or(std::time::Duration::from_secs(0))
+                        .as_millis() as u64;
                     scroll_offset = ((t_ms / 125) % 1000000) as i32;
                 }
 

@@ -144,6 +144,15 @@ struct Args {
     energy_body_indicator: bool,
 }
 
+struct TerminalGuard;
+
+impl Drop for TerminalGuard {
+    fn drop(&mut self) {
+        let _ = disable_raw_mode();
+        let _ = execute!(stdout(), LeaveAlternateScreen, DisableMouseCapture);
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let args = Args::parse();
@@ -154,6 +163,7 @@ async fn main() -> Result<()> {
     // Initial Setup
     // Initialize terminal
     enable_raw_mode()?;
+    let _guard = TerminalGuard;
     let mut stdout = stdout();
     execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
 
@@ -332,7 +342,10 @@ async fn main() -> Result<()> {
         profile_stats = profile::fetch_profile(&account_id).await.ok();
     } else {
         // Offline Mode
-        seed = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as i64;
+        seed = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or(std::time::Duration::from_secs(0))
+            .as_millis() as i64;
         profile_stats = None;
     }
 
@@ -400,12 +413,12 @@ async fn main() -> Result<()> {
         let loadout_items = vec!["PISTOL_1".to_string(), "RIFLE_1".to_string(), "LASER_1".to_string()];
 
         // Temporarily leave raw mode to print contract output clearly
-        crossterm::terminal::disable_raw_mode().unwrap();
+        let _ = crossterm::terminal::disable_raw_mode();
         if let Err(e) = session::lock_session(&menu.secret_key, loadout_items).await {
             eprintln!("Failed to lock session assets: {}", e);
             tokio::time::sleep(Duration::from_secs(2)).await;
         }
-        crossterm::terminal::enable_raw_mode().unwrap();
+        let _ = crossterm::terminal::enable_raw_mode();
     }
 
     // Start simulation with bots

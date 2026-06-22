@@ -114,17 +114,17 @@ pub struct NativeEngine {
     game_ptr: *mut c_void,
     _lib: Arc<Library>, // Keep library loaded
     // Function pointers
-    destroy_fn: Symbol<'static, FnDestroyGame>,
-    update_fn: Symbol<'static, FnUpdate>,
-    get_gamestate_fn: Symbol<'static, FnGetSimulationState>,
-    process_input_fn: Symbol<'static, FnProcessInput>,
-    get_playerstate_fn: Symbol<'static, FnGetPlayerState>,
-    get_gridcells_fn: Symbol<'static, FnGetGridCells>,
-    get_backpack_fn: Symbol<'static, FnGetBackpack>,
-    equip_item_fn: Symbol<'static, FnEquipItem>,
-    unequip_item_fn: Symbol<'static, FnUnequipItem>,
-    get_replay_hash_fn: Symbol<'static, FnGetReplayHash>,
-    set_game_mode_fn: Symbol<'static, FnSetGameModeFFI>,
+    destroy_fn: FnDestroyGame,
+    update_fn: FnUpdate,
+    get_gamestate_fn: FnGetSimulationState,
+    process_input_fn: FnProcessInput,
+    get_playerstate_fn: FnGetPlayerState,
+    get_gridcells_fn: FnGetGridCells,
+    get_backpack_fn: FnGetBackpack,
+    equip_item_fn: FnEquipItem,
+    unequip_item_fn: FnUnequipItem,
+    get_replay_hash_fn: FnGetReplayHash,
+    set_game_mode_fn: FnSetGameModeFFI,
 }
 
 impl NativeEngine {
@@ -170,18 +170,18 @@ impl NativeEngine {
             );
             assert!(!game_ptr.is_null(), "Failed to create Native game instance");
 
-            // Extension of lifetime for symbols is safe because we hold Arc<Library>
-            let destroy_fn = std::mem::transmute(destroy_game);
-            let update_fn = std::mem::transmute(update);
-            let get_gamestate_fn = std::mem::transmute(get_gamestate);
-            let process_input_fn = std::mem::transmute(process_input);
-            let get_playerstate_fn = std::mem::transmute(get_playerstate);
-            let get_gridcells_fn = std::mem::transmute(get_gridcells);
-            let get_backpack_fn = std::mem::transmute(get_backpack);
-            let equip_item_fn = std::mem::transmute(equip_item);
-            let unequip_item_fn = std::mem::transmute(unequip_item);
-            let get_replay_hash_fn = std::mem::transmute(get_replay_hash);
-            let set_game_mode_fn = std::mem::transmute(set_game_mode);
+            // Copy raw function pointers from Symbol wrappers to completely bypass lifetime transmutation
+            let destroy_fn = *destroy_game;
+            let update_fn = *update;
+            let get_gamestate_fn = *get_gamestate;
+            let process_input_fn = *process_input;
+            let get_playerstate_fn = *get_playerstate;
+            let get_gridcells_fn = *get_gridcells;
+            let get_backpack_fn = *get_backpack;
+            let equip_item_fn = *equip_item;
+            let unequip_item_fn = *unequip_item;
+            let get_replay_hash_fn = *get_replay_hash;
+            let set_game_mode_fn = *set_game_mode;
 
             Self {
                 game_ptr,
@@ -287,8 +287,10 @@ impl Drop for NativeEngine {
     }
 }
 
+// SAFETY: NativeEngine is Send because the underlying raw pointer is safe to move
+// between threads (Tokio runtime thread migration). It is NOT Sync because
+// concurrent FFI mutations of the underlying game core would lead to data races.
 unsafe impl Send for NativeEngine {}
-unsafe impl Sync for NativeEngine {}
 
 pub fn direction_from_delta(dx: i32, dy: i32) -> Option<i32> {
     match (dx, dy) {
