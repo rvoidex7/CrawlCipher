@@ -2,7 +2,9 @@
 
 This document is intended for users who wish to build the project from its source code.
 
-**Note:** The deterministic native engine (`.dll` or `.so`) is proprietary and closed-source. This repository assumes you have downloaded the pre-compiled proprietary binaries into the `core-binaries/` folder before building the frontend.
+**Note:** The deterministic native engine (`.dll` or `.so`) is developed locally in C# (`CrawlCipher.Core`) but is excluded from the public Git repository via `.gitignore` to maintain the integrity of the anti-cheat verification mechanisms. Therefore:
+- **For Public Git Clones:** You must download the pre-compiled binaries from the GitHub Releases page and place them in the `core-binaries/` folder before building the TUI.
+- **For Local Development (if source is present):** You can compile the entire project (Core Engine + TUI) from source.
 
 ## Prerequisites
 * **Rust & Cargo** (for the Terminal UI and Smart Contracts)
@@ -33,6 +35,12 @@ export SECRET_KEY="S_YOUR_TESTNET_SECRET_KEY"
 ./deploy_contract.sh
 ```
 
-## 3. Proprietary Engine
-The internal deterministic engine logic is closed-source to protect the integrity of the anti-cheat verification mechanisms.
-* Developers must place the official native engine binary (`.so` on Linux, `.dll` on Windows) inside the `core-binaries/` directory before building the TUI wrapper.
+## 3. Core Engine Compilation (Local Dev Only)
+If you have access to the local `CrawlCipher.Core` C# source code, you can compile it into a native shared library using .NET 8.0 NativeAOT:
+- **Automatic Dev Build:** Run `./dev-build-linux.sh` (Linux) or `dev-build-windows.bat` (Windows) at the project root. This restores, builds, and publishes both the C# Core Engine and Rust TUI into the `output/` directory.
+- **Manual Publish:**
+  ```bash
+  cd CrawlCipher.Core
+  dotnet publish -c Release -r linux-x64 -p:PublishAot=true
+  # Copy CrawlCipher.Core.so to core-binaries/libCrawlCipher.Core.so
+  ```

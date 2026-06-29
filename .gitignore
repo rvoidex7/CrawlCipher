@@ -38,6 +38,7 @@ __pycache__/
 # Docs
 docs/new-docs/
 docs/old-docs/
+docs/r7/
 target/
 internal-docs/
 dev-build-linux.sh
@@ -45,3 +46,5 @@ dev-build-windows.bat
 #
 CrawlCipher.Core/
 core-binaries/libCrawlCipher.Core.so
+.obsidian/
+
