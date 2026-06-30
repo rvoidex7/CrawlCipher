@@ -17,6 +17,10 @@ struct Ledger {
     hash: String,
 }
 
+/// Fetches the latest block hash from the Stellar Horizon API to derive the simulation seed.
+/// 
+/// See: [Anti-Cheat-Verification.md](../../docs/r7/Development/Anti-Cheat-Verification.md#2-dynamic-entropy-via-stellar-ledger)
+/// See: https://rvoidex7.github.io/r7notes/Github-Projects/Anti-Cheat-Verification
 pub async fn fetch_latest_ledger_hash() -> Result<String, Box<dyn std::error::Error>> {
     let url = "https://horizon-testnet.stellar.org/ledgers?order=desc&limit=1";
     let client = reqwest::Client::new();

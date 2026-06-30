@@ -11,6 +11,11 @@ use std::sync::Arc;
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
+/// Transmits global game engine settings and state metrics across the FFI.
+/// Configured with #[repr(C)] to match C# StructLayout.Sequential.
+/// 
+/// See Local Specs: [Memory-and-FFI-Bridge.md](../../docs/r7/Development/Memory-and-FFI-Bridge.md#2-abi-struct-alignments--padding)
+/// See Online Specs: https://rvoidex7.github.io/r7notes/Github-Projects/Memory-and-FFI-Bridge
 pub struct SimulationState {
     pub player_count: i32,
     pub grid_width: i32,
@@ -18,7 +23,7 @@ pub struct SimulationState {
     pub local_player_id: i32,
     pub simulation_state: i32,
     pub timestamp: i64,
-    pub enable_walls: i32, // 1 = true, 0 = false
+    pub enable_walls: i32, // Marshalled as i32 (1/0) to guarantee a fixed 4-byte size instead of platform-specific boolean sizes
     pub current_wave: i32,
     pub match_time_seconds: i32,
     pub portal_x: i32,
@@ -170,7 +175,17 @@ impl NativeEngine {
             );
             assert!(!game_ptr.is_null(), "Failed to create Native game instance");
 
-            // Copy raw function pointers from Symbol wrappers to completely bypass lifetime transmutation
+            // 1. Lifetime Transmutation Bypass & Memory Safety
+            // By default, libloading binds the lifetime of the loaded Symbol<'lib, T> to the Library reference.
+            // This prevents returning the function pointers out of the constructor scope.
+            // 
+            // Safety Heuristic:
+            // We dereference the Symbol wrapper (*destroy_game) to copy the raw unmanaged function pointer.
+            // This drops the compiler lifetime check. To ensure this does not lead to a Use-After-Free,
+            // we store the Arc<Library> ('_lib') directly in the NativeEngine struct.
+            // As long as NativeEngine is alive, the reference count of the shared library (.so/.dll) is >= 1,
+            // preventing the OS from unloading the library from memory, which guarantees that these raw
+            // function pointers remain valid.
             let destroy_fn = *destroy_game;
             let update_fn = *update;
             let get_gamestate_fn = *get_gamestate;

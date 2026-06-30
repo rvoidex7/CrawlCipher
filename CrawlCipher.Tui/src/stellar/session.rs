@@ -10,7 +10,10 @@ fn get_public_address(secret_key: &str) -> Result<String, Box<dyn std::error::Er
     let public_key = PublicKey(verify_key.to_bytes());
     Ok(public_key.to_string())
 }
-
+/// Invokes the `lock_session` function on the Soroban smart contract to lock the player's active loadout.
+/// 
+/// See: [Architecture.md](../../docs/r7/Development/Architecture.md)
+/// See: https://rvoidex7.github.io/r7notes/Github-Projects/Architecture
 pub async fn lock_session(secret_key: &str, assets: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
     let contract_id = env::var("CRAWLCIPHER_CONTRACT_ID")
         .unwrap_or_else(|_| "CCAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA".to_string());
@@ -45,6 +48,7 @@ pub async fn lock_session(secret_key: &str, assets: Vec<String>) -> Result<(), B
         .output()
         .await;
 
+    // 1. Evaluate Soroban Contract Invocation Output
     match output {
         Ok(cmd_output) => {
             if cmd_output.status.success() {
@@ -52,16 +56,24 @@ pub async fn lock_session(secret_key: &str, assets: Vec<String>) -> Result<(), B
                 Ok(())
             } else {
                 let err_msg = String::from_utf8_lossy(&cmd_output.stderr);
+                
+                // 2. Offline Sandbox Fallback Rule
+                // If the player does not have 'stellar-cli' installed, we do not crash the game.
+                // We notify the player and fallback to a local simulation of network success
+                // to allow offline testing of the gameplay loop.
                 if err_msg.contains("stellar: command not found") {
                      println!(">>> DEMO MODE: stellar-cli not found, simulating network success... <<<");
                      tokio::time::sleep(std::time::Duration::from_millis(800)).await;
                      Ok(())
                 } else {
+                     // The CLI is present, but the smart contract reported an actual validation/signature error.
                      Err(format!("Contract Invoke Failed: {}", err_msg).into())
                 }
             }
         },
         Err(e) => {
+             // 3. Spawning Error Fallback
+             // If the shell fails to spawn the process, fallback to sandbox demo mode.
              println!(">>> DEMO MODE: Error executing stellar-cli ({}), simulating network success... <<<", e);
              tokio::time::sleep(std::time::Duration::from_millis(800)).await;
              Ok(())
@@ -69,6 +81,10 @@ pub async fn lock_session(secret_key: &str, assets: Vec<String>) -> Result<(), B
     }
 }
 
+/// Invokes the `unlock_session` function on the Soroban smart contract to submit the session proof hash and release locked assets.
+/// 
+/// See: [Anti-Cheat-Verification.md](../../docs/r7/Development/Anti-Cheat-Verification.md)
+/// See: https://rvoidex7.github.io/r7notes/Github-Projects/Anti-Cheat-Verification
 pub async fn unlock_session(secret_key: &str, game_hash: &str) -> Result<(), Box<dyn std::error::Error>> {
     let contract_id = env::var("CRAWLCIPHER_CONTRACT_ID")
         .unwrap_or_else(|_| "CCAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA".to_string());

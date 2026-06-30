@@ -30,12 +30,20 @@ pub async fn fetch_profile(account_id: &str) -> Result<ProfileStats, Box<dyn std
     })
 }
 
+/// Decodes a base64-encoded Stellar account data entry value and parses the raw bytes
+/// into a 64-bit little-endian integer (i64).
+/// 
+/// See Local Specs: [Anti-Cheat-Verification.md](../../docs/r7/Development/Anti-Cheat-Verification.md)
+/// See Online Specs: https://rvoidex7.github.io/r7notes/Github-Projects/Anti-Cheat-Verification
 fn parse_data_entry(data: &HashMap<String, String>, key: &str) -> i64 {
     data.get(key)
+        // 1. Decode the Base64 string value returned by the Stellar Horizon API
         .and_then(|v| general_purpose::STANDARD.decode(v).ok())
         .and_then(|bytes| {
+            // 2. We expect exactly 8 bytes representing a 64-bit integer
             if bytes.len() == 8 {
                 let arr: [u8; 8] = bytes.try_into().unwrap_or([0; 8]);
+                // 3. Parse the byte array using Little-Endian byte ordering
                 Some(i64::from_le_bytes(arr))
             } else {
                 None

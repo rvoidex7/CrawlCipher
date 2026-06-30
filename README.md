@@ -9,6 +9,8 @@ A full-stack, terminal-based dApp demonstrating **deterministic state hashing**,
 
 The primary focus of this project is resolving trust and manipulation issues in decentralized interactive systems through cryptographic proofs.
 
+Detailed gameplay and architecture guides are available on the [Online Documentation Wiki](https://rvoidex7.github.io/r7notes/Github-Projects/CrawlCipher).
+
 <table width="100%">
   <tr>
     <td valign="middle">
