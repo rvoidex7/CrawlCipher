@@ -329,13 +329,53 @@ async fn main() -> Result<()> {
     let profile_stats;
 
     if !is_offline {
-        // Online Mode: Fetch from Stellar (Using blocking call or waiting)
+        // Online Mode: Smart Contract Session Lock first, THEN derive the seed from the
+        // ledger closed right after the lock. This is the "seed committed before play"
+        // property — the seed must not be knowable (let alone re-rollable) before the lock
+        // transaction lands on-chain.
         // Since we are inside tui now, printing is bad.
         // We should render a loading screen. For MVP we just wait.
-        seed = match entropy::fetch_latest_ledger_hash().await {
-            Ok(hash) => entropy::hash_to_seed(&hash),
-            Err(_) => 12345,
+        let loadout_items = vec!["PISTOL_1".to_string(), "RIFLE_1".to_string(), "LASER_1".to_string()];
+
+        // Temporarily leave raw mode to print contract output clearly
+        let _ = crossterm::terminal::disable_raw_mode();
+
+        let lock_result = session::lock_session(&menu.secret_key, loadout_items).await;
+        if let Err(e) = &lock_result {
+            eprintln!("Failed to lock session assets: {}", e);
+            tokio::time::sleep(Duration::from_secs(2)).await;
+        }
+
+        // Derive the seed from the ledger sequence right after the lock (sequence = lock_seq + 1),
+        // polling briefly if it hasn't closed yet. Falls back to the legacy "latest ledger"
+        // entropy (and finally a constant) if the lock, the contract read, or the ledger fetch
+        // are unavailable — e.g. stellar-cli missing/demo mode — so local/offline-CLI
+        // development keeps working without crashing.
+        seed = 'derive_seed: {
+            if lock_result.is_ok() {
+                if let Ok(Some(lock_seq)) = session::get_lock_seq(&menu.secret_key).await {
+                    let target_seq = lock_seq + 1;
+                    const MAX_POLL_ATTEMPTS: u32 = 8;
+                    for attempt in 0..MAX_POLL_ATTEMPTS {
+                        if attempt > 0 {
+                            // Stellar ledgers close roughly every 5-6s; wait for the next one.
+                            tokio::time::sleep(Duration::from_secs(2)).await;
+                        }
+                        if let Ok(hash) = entropy::fetch_ledger_hash_by_sequence(target_seq).await {
+                            break 'derive_seed entropy::hash_to_seed(&hash);
+                        }
+                    }
+                }
+            }
+
+            // Fallback: legacy "latest ledger" entropy.
+            match entropy::fetch_latest_ledger_hash().await {
+                Ok(hash) => entropy::hash_to_seed(&hash),
+                Err(_) => 12345,
+            }
         };
+
+        let _ = crossterm::terminal::enable_raw_mode();
 
         // Validate Public Key if possible or just use dummy account
         let account_id = std::env::var("STELLAR_ACCOUNT_ID").unwrap_or("GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF".to_string());
@@ -408,18 +448,9 @@ async fn main() -> Result<()> {
     };
     simulation.set_game_mode(mode, puzzle_id);
 
-    // Smart Contract: Session Lock
-    if !is_offline {
-        let loadout_items = vec!["PISTOL_1".to_string(), "RIFLE_1".to_string(), "LASER_1".to_string()];
-
-        // Temporarily leave raw mode to print contract output clearly
-        let _ = crossterm::terminal::disable_raw_mode();
-        if let Err(e) = session::lock_session(&menu.secret_key, loadout_items).await {
-            eprintln!("Failed to lock session assets: {}", e);
-            tokio::time::sleep(Duration::from_secs(2)).await;
-        }
-        let _ = crossterm::terminal::enable_raw_mode();
-    }
+    // Note: the online-mode Smart Contract Session Lock now happens earlier, as part of
+    // seed derivation above (lock -> get_lock_seq -> ledger fetch -> seed), so the seed is
+    // provably committed before the engine is constructed.
 
     // Start simulation with bots
     simulation.process_input(5, initial_bots, 0);

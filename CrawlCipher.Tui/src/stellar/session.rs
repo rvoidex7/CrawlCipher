@@ -81,6 +81,73 @@ pub async fn lock_session(secret_key: &str, assets: Vec<String>) -> Result<(), B
     }
 }
 
+/// Reads the lock-time ledger sequence for a player's active session lock via the
+/// `get_lock_seq` contract getter.
+///
+/// Returns `Ok(None)` both when the contract has no active lock for the player and when
+/// the chain is unreachable in the same "demo mode" sense as `lock_session`/`unlock_session`
+/// (e.g. `stellar-cli` not installed) — callers should fall back to legacy entropy in that case.
+///
+/// See: [Anti-Cheat-Verification.md](../../docs/r7/Development/Anti-Cheat-Verification.md)
+/// See: https://rvoidex7.github.io/r7notes/Github-Projects/Anti-Cheat-Verification
+pub async fn get_lock_seq(secret_key: &str) -> Result<Option<u32>, Box<dyn std::error::Error>> {
+    let contract_id = env::var("CRAWLCIPHER_CONTRACT_ID")
+        .unwrap_or_else(|_| "CCAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA".to_string());
+
+    let public_address = get_public_address(secret_key).unwrap_or_else(|_| "G_INVALID_KEY".to_string());
+
+    println!(">>> CALLING SMART CONTRACT (TESTNET): get_lock_seq <<<");
+    println!("  Player: {}", public_address);
+
+    let output = Command::new("stellar")
+        .arg("contract")
+        .arg("invoke")
+        .arg("--id")
+        .arg(&contract_id)
+        .arg("--source-account")
+        .arg(secret_key)
+        .arg("--network")
+        .arg("testnet")
+        .arg("--")
+        .arg("get_lock_seq")
+        .arg("--player")
+        .arg(&public_address)
+        .output()
+        .await;
+
+    match output {
+        Ok(cmd_output) => {
+            if cmd_output.status.success() {
+                let stdout = String::from_utf8_lossy(&cmd_output.stdout);
+                let trimmed = stdout.trim().trim_matches('"');
+                match trimmed.parse::<u32>() {
+                    Ok(seq) => {
+                        println!(">>> SMART CONTRACT SUCCESS: lock_seq = {} <<<", seq);
+                        Ok(Some(seq))
+                    }
+                    // "null" (no active lock recorded) or unparseable output.
+                    Err(_) => Ok(None),
+                }
+            } else {
+                let err_msg = String::from_utf8_lossy(&cmd_output.stderr);
+
+                // Same offline sandbox fallback rule as lock_session/unlock_session: if
+                // stellar-cli isn't installed, don't crash — let the caller fall back.
+                if err_msg.contains("stellar: command not found") {
+                    println!(">>> DEMO MODE: stellar-cli not found, cannot read lock_seq <<<");
+                    Ok(None)
+                } else {
+                    Err(format!("Contract Invoke Failed: {}", err_msg).into())
+                }
+            }
+        }
+        Err(e) => {
+            println!(">>> DEMO MODE: Error executing stellar-cli ({}), cannot read lock_seq <<<", e);
+            Ok(None)
+        }
+    }
+}
+
 /// Invokes the `unlock_session` function on the Soroban smart contract to submit the session proof hash and release locked assets.
 /// 
 /// See: [Anti-Cheat-Verification.md](../../docs/r7/Development/Anti-Cheat-Verification.md)
