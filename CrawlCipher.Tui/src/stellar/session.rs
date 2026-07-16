@@ -175,7 +175,7 @@ pub async fn unlock_session(secret_key: &str, game_hash: &str) -> Result<(), Box
         .arg("unlock_session")
         .arg("--player")
         .arg(&public_address)
-        .arg("--_game_hash")
+        .arg("--game_hash")
         .arg(game_hash)
         .output()
         .await;
