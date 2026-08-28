@@ -31,17 +31,10 @@ v2/
 __pycache__/
 *.pyc
 
-# Keep specific files if needed (e.g. source code)
-!CrawlCipher.Terminal/src/main.rs
-
 # Docs
-docs/new-docs/
-docs/old-docs/
-docs/r7/
+docs/
 target/
 internal-docs/
-dev-build-linux.sh
-dev-build-windows.bat
 #
 core-binaries/libCrawlCipher.Core.so
 .obsidian/
