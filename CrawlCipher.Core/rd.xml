@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Directives>
+  <Application>
+    <Assembly Name="CrawlCipher.Core" Dynamic="Required All">
+      <Type Name="CrawlCipher.Core.GameCore" Dynamic="Required All">
+        <Method Name="Update" Dynamic="Required" />
+        <Method Name="GetSimulationState" Dynamic="Required" />
+        <Method Name="ProcessInput" Dynamic="Required" />
+        <Method Name="FireWeapon" Dynamic="Required" />
+        <Method Name="Dash" Dynamic="Required" />
+        <Method Name="ShiftFocus" Dynamic="Required" />
+      </Type>
+      <Type Name="CrawlCipher.Core.Point" Dynamic="Required All" />
+      <Type Name="CrawlCipher.Core.Direction" Dynamic="Required All" />
+      <Type Name="CrawlCipher.Core.CellType" Dynamic="Required All" />
+      <Type Name="CrawlCipher.Core.SimulationState" Dynamic="Required All" />
+      <Type Name="CrawlCipher.Core.PlayerState" Dynamic="Required All" />
+      <Type Name="CrawlCipher.Core.CellInfo" Dynamic="Required All" />
+    </Assembly>
+  </Application>
+</Directives>

@@ -32,7 +32,6 @@ __pycache__/
 *.pyc
 
 # Keep specific files if needed (e.g. source code)
-!CrawlCipher.Core/GameCore.cs
 !CrawlCipher.Terminal/src/main.rs
 
 # Docs
@@ -44,7 +43,8 @@ internal-docs/
 dev-build-linux.sh
 dev-build-windows.bat
 #
-CrawlCipher.Core/
 core-binaries/libCrawlCipher.Core.so
 .obsidian/
-
+docker-builder/
+docker-rust-build/
+.dockerignore
